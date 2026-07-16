@@ -264,7 +264,8 @@ private struct ThreadRecord: Decodable {
             preview: preview,
             cwd: cwd,
             updatedAt: updatedAt,
-            status: status.threadStatus
+            status: status.threadStatus,
+            activeFlags: status.activeFlags ?? []
         )
     }
 
@@ -330,6 +331,15 @@ private struct ThreadRecord: Decodable {
 
 private struct StatusRecord: Decodable {
     let type: String
+    let activeFlags: [CodexThreadActiveFlag]?
+
+    init(
+        type: String,
+        activeFlags: [CodexThreadActiveFlag]? = nil
+    ) {
+        self.type = type
+        self.activeFlags = activeFlags
+    }
 
     var threadStatus: CodexThreadStatus {
         CodexThreadStatus(rawValue: type) ?? .unknown
