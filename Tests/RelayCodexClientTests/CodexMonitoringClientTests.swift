@@ -55,6 +55,58 @@ struct CodexMonitoringClientTests {
     }
 
     @Test
+    func mergesSparseRateLimitUpdatesWithoutErasingKnownValues() async throws {
+        let rpc = MonitoringFixtureRPC()
+        let source = MonitoringEventSource()
+        let client = CodexMonitoringClient(
+            rpc: rpc,
+            serverEvents: source.stream
+        )
+        _ = try await client.snapshot(limit: 1)
+        var iterator = client.events().makeAsyncIterator()
+
+        source.yield(
+            .notification(
+                method: "account/rateLimits/updated",
+                params: .object([
+                    "rateLimits": .object([
+                        "primary": .object([
+                            "usedPercent": .integer(55),
+                        ]),
+                    ]),
+                ])
+            )
+        )
+
+        let updated = await iterator.next()?.usage
+
+        #expect(updated?.limitID == "codex")
+        #expect(updated?.limitName == "Codex")
+        #expect(updated?.primary?.usedPercent == 55)
+        #expect(updated?.primary?.windowDurationMins == 300)
+        #expect(updated?.primary?.resetsAt == 1_784_228_400)
+        #expect(updated?.secondary?.usedPercent == 73)
+        #expect(updated?.secondary?.windowDurationMins == 10_080)
+        #expect(updated?.secondary?.resetsAt == 1_784_814_400)
+        #expect(updated?.resetCreditsAvailableCount == 2)
+        #expect(updated?.resetCredits?.first?.title == "One-time reset")
+    }
+
+    @Test
+    func choosesNewestMeaningfulItemByActualItemOrder() async throws {
+        let rpc = MonitoringFixtureRPC(newerCommandUpdate: true)
+        let source = MonitoringEventSource()
+        let client = CodexMonitoringClient(
+            rpc: rpc,
+            serverEvents: source.stream
+        )
+
+        let snapshot = try await client.snapshot(limit: 1)
+
+        #expect(snapshot.tasks.first?.latestUpdate == "Running: swift test")
+    }
+
+    @Test
     func decodesStatusTokenAndRateLimitNotifications() async throws {
         let rpc = MonitoringFixtureRPC()
         let source = MonitoringEventSource()
@@ -194,10 +246,15 @@ struct CodexMonitoringClientTests {
 
 private actor MonitoringFixtureRPC: CodexRPCRequesting {
     private let missingUsage: Bool
+    private let newerCommandUpdate: Bool
     private var methods: [String] = []
 
-    init(missingUsage: Bool = false) {
+    init(
+        missingUsage: Bool = false,
+        newerCommandUpdate: Bool = false
+    ) {
         self.missingUsage = missingUsage
+        self.newerCommandUpdate = newerCommandUpdate
     }
 
     func requestJSON(
@@ -220,7 +277,8 @@ private actor MonitoringFixtureRPC: CodexRPCRequesting {
                 "thread": Self.thread(
                     id: id,
                     waiting: id == "worker-1",
-                    includeTurns: true
+                    includeTurns: true,
+                    newerCommandUpdate: newerCommandUpdate
                 ),
             ])
         case "account/rateLimits/read":
@@ -262,7 +320,8 @@ private actor MonitoringFixtureRPC: CodexRPCRequesting {
     private static func thread(
         id: String,
         waiting: Bool,
-        includeTurns: Bool = false
+        includeTurns: Bool = false,
+        newerCommandUpdate: Bool = false
     ) -> JSONValue {
         .object([
             "id": .string(id),
@@ -281,14 +340,29 @@ private actor MonitoringFixtureRPC: CodexRPCRequesting {
                     .object([
                         "id": .string("turn-1"),
                         "status": .string("inProgress"),
-                        "items": .array([
-                            .object([
-                                "id": .string("message-1"),
-                                "type": .string("agentMessage"),
-                                "phase": .string("commentary"),
-                                "text": .string("Checking fixtures."),
-                            ]),
-                        ]),
+                        "items": .array(
+                            [
+                                .object([
+                                    "id": .string("message-1"),
+                                    "type": .string("agentMessage"),
+                                    "phase": .string("commentary"),
+                                    "text": .string("Checking fixtures."),
+                                ]),
+                            ] + (
+                                newerCommandUpdate
+                                    ? [
+                                        .object([
+                                            "id": .string("command-1"),
+                                            "type": .string(
+                                                "commandExecution"
+                                            ),
+                                            "command": .string("swift test"),
+                                            "status": .string("inProgress"),
+                                        ]),
+                                    ]
+                                    : []
+                            )
+                        ),
                     ]),
                 ])
                 : .array([]),

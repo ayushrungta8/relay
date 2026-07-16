@@ -8,6 +8,7 @@ public actor CodexMonitoringClient {
         AsyncStream<RelayMonitoringEvent>.Continuation
     private nonisolated(unsafe) var eventTask: Task<Void, Never>?
     private var tokenUsageByThreadID: [String: RelayThreadTokenUsage] = [:]
+    private var latestUsageSnapshot: RelayUsageSnapshot?
 
     public init(
         rpc: any CodexRPCRequesting,
@@ -74,9 +75,11 @@ public actor CodexMonitoringClient {
             method: "account/rateLimits/read",
             params: .object([:])
         )
+        let usage = rateLimits.relaySnapshot
+        latestUsageSnapshot = usage
         return RelayMonitoringSnapshot(
             tasks: tasks,
-            usage: rateLimits.relaySnapshot,
+            usage: usage,
             tokenUsageByThreadID: tokenUsageByThreadID
         )
     }
@@ -122,8 +125,12 @@ public actor CodexMonitoringClient {
                 )
             case "account/rateLimits/updated":
                 let value: CodexRateLimitsUpdatedParameters = try decode(params)
+                let patch = value.rateLimits.relaySnapshot()
+                let usage = latestUsageSnapshot?
+                    .mergingSparseUpdate(patch) ?? patch
+                latestUsageSnapshot = usage
                 eventContinuation.yield(
-                    .usageUpdated(value.rateLimits.relaySnapshot())
+                    .usageUpdated(usage)
                 )
             case "thread/started",
                  "turn/started",

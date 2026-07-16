@@ -70,26 +70,26 @@ struct CodexMonitoringThreadRecord: Decodable {
 
     var latestUpdate: String? {
         for turn in turns.reversed() {
-            if let message = turn.items.reversed().first(where: {
-                $0.type == "agentMessage" && !($0.text ?? "").isEmpty
-            })?.text {
-                return Self.normalized(message)
-            }
-            if let plan = turn.items.reversed().first(where: {
-                $0.type == "plan" && !($0.text ?? "").isEmpty
-            })?.text {
-                return Self.normalized(plan)
-            }
-            if let command = turn.items.reversed().first(where: {
-                $0.type == "commandExecution"
-                    && !($0.command ?? "").isEmpty
-            }) {
-                let prefix = command.status == "inProgress"
-                    ? "Running"
-                    : "Last command"
-                return Self.normalized(
-                    "\(prefix): \(command.command ?? "")"
-                )
+            for item in turn.items.reversed() {
+                switch item.type {
+                case "agentMessage":
+                    if let text = item.text, !text.isEmpty {
+                        return Self.normalized(text)
+                    }
+                case "plan":
+                    if let text = item.text, !text.isEmpty {
+                        return Self.normalized(text)
+                    }
+                case "commandExecution":
+                    if let command = item.command, !command.isEmpty {
+                        let prefix = item.status == "inProgress"
+                            ? "Running"
+                            : "Last command"
+                        return Self.normalized("\(prefix): \(command)")
+                    }
+                default:
+                    continue
+                }
             }
             if let error = turn.error?.message, !error.isEmpty {
                 return Self.normalized("Failed: \(error)")
@@ -208,5 +208,36 @@ struct CodexTokenUsageUpdatedParameters: Decodable {
         case threadID = "threadId"
         case turnID = "turnId"
         case tokenUsage
+    }
+}
+
+extension RelayUsageSnapshot {
+    func mergingSparseUpdate(
+        _ update: RelayUsageSnapshot
+    ) -> RelayUsageSnapshot {
+        RelayUsageSnapshot(
+            limitID: update.limitID ?? limitID,
+            limitName: update.limitName ?? limitName,
+            primary: primary.mergingSparseUpdate(update.primary),
+            secondary: secondary.mergingSparseUpdate(update.secondary),
+            resetCreditsAvailableCount: update.resetCreditsAvailableCount
+                ?? resetCreditsAvailableCount,
+            resetCredits: update.resetCredits ?? resetCredits
+        )
+    }
+}
+
+private extension Optional where Wrapped == RelayRateLimitWindow {
+    func mergingSparseUpdate(
+        _ update: RelayRateLimitWindow?
+    ) -> RelayRateLimitWindow? {
+        guard let update else { return self }
+        guard let current = self else { return update }
+        return RelayRateLimitWindow(
+            usedPercent: update.usedPercent,
+            windowDurationMins: update.windowDurationMins
+                ?? current.windowDurationMins,
+            resetsAt: update.resetsAt ?? current.resetsAt
+        )
     }
 }
