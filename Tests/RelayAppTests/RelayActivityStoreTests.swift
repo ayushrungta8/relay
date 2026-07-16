@@ -1,10 +1,68 @@
 import Foundation
+import RelayBrain
 import RelayCodexClient
 import RelayCore
 import Testing
 @testable import RelayApp
 
 struct RelayActivityStoreTests {
+    @MainActor
+    @Test
+    func exposesCurrentAttentionUsageAndTaskReferenceContext() async {
+        let usage = RelayUsageSnapshot(
+            limitID: "codex",
+            limitName: "Codex",
+            primary: RelayRateLimitWindow(
+                usedPercent: 71,
+                windowDurationMins: 300,
+                resetsAt: 1_784_220_000
+            ),
+            secondary: nil,
+            resetCreditsAvailableCount: 1
+        )
+        let monitoring = MonitoringStub(
+            results: [
+                .success(
+                    .init(
+                        tasks: [
+                            RelayTaskActivity(
+                                thread: CodexThread(
+                                    id: "waiting",
+                                    name: "Waiting task",
+                                    preview: "Waiting task",
+                                    cwd: "/Projects/Relay",
+                                    updatedAt: 100,
+                                    status: .active,
+                                    activeFlags: [.waitingOnUserInput]
+                                )
+                            ),
+                        ],
+                        usage: usage
+                    )
+                ),
+            ]
+        )
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {}
+        )
+
+        await store.refresh()
+        await store.select(threadID: "waiting")
+
+        let reader: any RelaySupervisionStateReading = store
+        #expect(await reader.attentionInbox().map(\.id) == ["waiting"])
+        #expect(await reader.currentUsage()?.primary?.usedPercent == 71)
+        #expect(
+            await reader.taskReferenceContext()
+                == RelayTaskReferenceContext(
+                    selectedTaskID: "waiting",
+                    lastInteractedTaskID: "waiting"
+                )
+        )
+    }
+
     @MainActor
     @Test
     func failedRefreshKeepsTheLastKnownSnapshotVisibleOffline() async {

@@ -15,11 +15,15 @@ struct RelayNotchPanelHost: View {
             capacity: capacityPresentation,
             tokenUsageByThreadID:
                 model.activityStore?.tokenUsageByThreadID ?? [:],
+            pendingInteractionsByThreadID:
+                model.pendingInteractionsByThreadID,
             actions: taskActions,
             commandText: $model.commandText,
             composerPhase: model.composerPhase,
             topInset: state.topInset,
             submitCommand: submitCommand,
+            submitPendingAnswers: submitPendingAnswers,
+            submitPendingDecision: submitPendingDecision,
             requestPresentation: state.requestPresentation,
             reportContentHeight: { presentation, height in
                 state.requestContentHeight(height, for: presentation)
@@ -57,6 +61,26 @@ struct RelayNotchPanelHost: View {
         Task {
             await model.submitCommand()
         }
+    }
+
+    private func submitPendingAnswers(
+        _ interactionID: String,
+        _ answers: [String: [String]]
+    ) async throws {
+        try await model.submitPendingAnswers(
+            interactionID: interactionID,
+            answers: answers
+        )
+    }
+
+    private func submitPendingDecision(
+        _ interactionID: String,
+        _ decision: RelayPendingApprovalDecision
+    ) async throws {
+        try await model.submitPendingDecision(
+            interactionID: interactionID,
+            decision: decision
+        )
     }
 
     private func open(_ task: RelayTaskActivity) async throws {

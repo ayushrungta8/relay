@@ -32,3 +32,92 @@ public protocol RelayTaskOperations: Sendable {
     func sendToTask(id: String, prompt: String) async throws
     func interruptTask(id: String) async throws
 }
+
+public struct RelayControllerUsageWindow: Sendable, Equatable, Encodable {
+    public let usedPercent: Int
+    public let windowDurationMinutes: Int64?
+    public let resetsAt: Int64?
+
+    public init(
+        usedPercent: Int,
+        windowDurationMinutes: Int64?,
+        resetsAt: Int64?
+    ) {
+        self.usedPercent = usedPercent
+        self.windowDurationMinutes = windowDurationMinutes
+        self.resetsAt = resetsAt
+    }
+}
+
+public struct RelayControllerUsage: Sendable, Equatable, Encodable {
+    public let limitID: String?
+    public let limitName: String?
+    public let primary: RelayControllerUsageWindow?
+    public let secondary: RelayControllerUsageWindow?
+    public let resetCreditsAvailableCount: Int64?
+
+    public init(
+        limitID: String? = nil,
+        limitName: String? = nil,
+        primary: RelayControllerUsageWindow?,
+        secondary: RelayControllerUsageWindow?,
+        resetCreditsAvailableCount: Int64? = nil
+    ) {
+        self.limitID = limitID
+        self.limitName = limitName
+        self.primary = primary
+        self.secondary = secondary
+        self.resetCreditsAvailableCount = resetCreditsAvailableCount
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case limitID
+        case limitName
+        case primary
+        case secondary
+        case resetCreditsAvailableCount
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(limitID, forKey: .limitID)
+        try container.encodeIfPresent(limitName, forKey: .limitName)
+        if let primary {
+            try container.encode(primary, forKey: .primary)
+        } else {
+            try container.encodeNil(forKey: .primary)
+        }
+        if let secondary {
+            try container.encode(secondary, forKey: .secondary)
+        } else {
+            try container.encodeNil(forKey: .secondary)
+        }
+        try container.encodeIfPresent(
+            resetCreditsAvailableCount,
+            forKey: .resetCreditsAvailableCount
+        )
+    }
+}
+
+public struct RelayTaskReferenceContext: Sendable, Equatable {
+    public let selectedTaskID: String?
+    public let lastInteractedTaskID: String?
+
+    public init(
+        selectedTaskID: String? = nil,
+        lastInteractedTaskID: String? = nil
+    ) {
+        self.selectedTaskID = selectedTaskID
+        self.lastInteractedTaskID = lastInteractedTaskID
+    }
+
+    public var resolvedTaskID: String? {
+        selectedTaskID ?? lastInteractedTaskID
+    }
+}
+
+public protocol RelaySupervisionStateReading: Sendable {
+    func attentionInbox() async -> [RelayTaskSummary]
+    func currentUsage() async -> RelayControllerUsage?
+    func taskReferenceContext() async -> RelayTaskReferenceContext
+}

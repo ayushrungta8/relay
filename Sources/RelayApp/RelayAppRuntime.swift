@@ -9,6 +9,7 @@ final class RelayAppRuntime {
     let commandHandler: any RelayCommandHandling
     let pushToTalk: PushToTalkCoordinator
     let activityStore: RelayActivityStore
+    let pendingInteractionBroker: RelayPendingInteractionBroker
 
     private let shortcutMonitor: any RelayGlobalShortcutMonitoring
 
@@ -30,11 +31,18 @@ final class RelayAppRuntime {
                 try await rpc.start()
             }
         )
+        pendingInteractionBroker = RelayPendingInteractionBroker(
+            rpc: rpc,
+            controllerThreadStore: controllerThreadStore
+        )
         let taskOperations = CodexRelayTaskOperationsAdapter(
             client: taskClient,
             controllerThreadStore: controllerThreadStore
         )
-        let router = RelayToolCallRouter(operations: taskOperations)
+        let router = RelayToolCallRouter(
+            operations: taskOperations,
+            supervision: activityStore
+        )
         let controllerSession = CodexControllerSessionAdapter(
             rpc: rpc,
             store: controllerThreadStore,

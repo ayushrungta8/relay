@@ -70,7 +70,6 @@ struct CodexControllerSessionAdapterTests {
                 )
             )
         )
-
         let toolEvent = try #require(try await iterator.next())
         guard case let .dynamicToolCall(call) = toolEvent else {
             Issue.record("Expected a dynamic tool call")
@@ -171,7 +170,7 @@ struct CodexControllerSessionAdapterTests {
     }
 
     @Test
-    func safelyDeclinesWorkerRequestsInsteadOfLeavingThemHanging()
+    func declinesOnlyHiddenControllerRequestsAndLeavesWorkerRequestsForTheUser()
         async throws
     {
         let rpc = ControllerRPCStub()
@@ -208,20 +207,71 @@ struct CodexControllerSessionAdapterTests {
                 )
             )
         )
-
-        let approval = try #require(
-            await rpc.waitForResponse(
-                to: .string("worker-approval")
-            )?.objectValue
+        await rpc.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("worker-legacy-approval"),
+                    method: "execCommandApproval",
+                    params: .object([
+                        "conversationId": .string("worker-1"),
+                    ])
+                )
+            )
         )
+        await rpc.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("controller-approval"),
+                    method: "item/commandExecution/requestApproval",
+                    params: .object([
+                        "threadId": .string("controller-1"),
+                        "turnId": .string("controller-turn-1"),
+                    ])
+                )
+            )
+        )
+        await rpc.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("controller-input"),
+                    method: "item/tool/requestUserInput",
+                    params: .object([
+                        "threadId": .string("controller-1"),
+                        "turnId": .string("controller-turn-1"),
+                    ])
+                )
+            )
+        )
+        await rpc.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("controller-legacy-approval"),
+                    method: "execCommandApproval",
+                    params: .object([
+                        "conversationId": .string("controller-1"),
+                    ])
+                )
+            )
+        )
+
+        let approval = try #require(await rpc.waitForResponse(
+            to: .string("controller-approval")
+        )?.objectValue)
         #expect(approval["decision"] == .string("decline"))
 
-        let input = try #require(
-            await rpc.waitForResponse(
-                to: .string("worker-input")
-            )?.objectValue
-        )
+        let input = try #require(await rpc.waitForResponse(
+            to: .string("controller-input")
+        )?.objectValue)
         #expect(input["answers"] == .object([:]))
+        let legacy = try #require(await rpc.waitForResponse(
+            to: .string("controller-legacy-approval")
+        )?.objectValue)
+        #expect(legacy["decision"] == .string("denied"))
+        #expect(await rpc.response(for: .string("worker-approval")) == nil)
+        #expect(await rpc.response(for: .string("worker-input")) == nil)
+        #expect(
+            await rpc.response(for: .string("worker-legacy-approval")) == nil
+        )
     }
 }
 

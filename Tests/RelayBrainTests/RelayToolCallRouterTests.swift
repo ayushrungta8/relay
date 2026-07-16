@@ -184,11 +184,6 @@ struct RelayToolCallRouterTests {
             ),
             (
                 "relay_get_task",
-                "{}",
-                "Missing required argument 'id'."
-            ),
-            (
-                "relay_get_task",
                 #"{"id":42}"#,
                 "Argument 'id' must be a string."
             ),

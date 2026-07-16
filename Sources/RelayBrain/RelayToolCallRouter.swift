@@ -12,9 +12,19 @@ public struct RelayToolCallResult: Sendable, Equatable, Encodable {
 
 public actor RelayToolCallRouter {
     private let operations: any RelayTaskOperations
+    private let supervision: any RelaySupervisionStateReading
 
     public init(operations: any RelayTaskOperations) {
         self.operations = operations
+        supervision = EmptySupervisionState()
+    }
+
+    public init(
+        operations: any RelayTaskOperations,
+        supervision: any RelaySupervisionStateReading
+    ) {
+        self.operations = operations
+        self.supervision = supervision
     }
 
     public func route(
@@ -59,7 +69,19 @@ public actor RelayToolCallRouter {
                     from: argumentsJSON,
                     allowedKeys: ["id"]
                 )
-                let id = try requiredString("id", in: arguments)
+                let id: String
+                if arguments["id"] != nil {
+                    id = try requiredString("id", in: arguments)
+                } else if let contextualID = await supervision
+                    .taskReferenceContext().resolvedTaskID {
+                    id = contextualID
+                } else {
+                    return failure(
+                        toolName: toolName,
+                        code: "clarification_required",
+                        message: "Which task do you mean? Select a task or name it."
+                    )
+                }
                 guard let task = try await operations.getTask(id: id) else {
                     return failure(
                         toolName: toolName,
@@ -69,6 +91,30 @@ public actor RelayToolCallRouter {
                 }
                 return success(
                     TaskPayload(ok: true, tool: toolName, task: task)
+                )
+            case .getAttentionInbox:
+                _ = try validatedArguments(
+                    from: argumentsJSON,
+                    allowedKeys: []
+                )
+                return success(
+                    TasksPayload(
+                        ok: true,
+                        tool: toolName,
+                        tasks: await supervision.attentionInbox()
+                    )
+                )
+            case .getUsage:
+                _ = try validatedArguments(
+                    from: argumentsJSON,
+                    allowedKeys: []
+                )
+                return success(
+                    UsagePayload(
+                        ok: true,
+                        tool: toolName,
+                        usage: await supervision.currentUsage()
+                    )
                 )
             case .startTask:
                 let arguments = try validatedArguments(
@@ -257,6 +303,12 @@ private struct TaskPayload: Encodable {
     let task: RelayTaskSummary
 }
 
+private struct UsagePayload: Encodable {
+    let ok: Bool
+    let tool: String
+    let usage: RelayControllerUsage?
+}
+
 private struct ActionPayload: Encodable {
     let ok: Bool
     let tool: String
@@ -277,4 +329,10 @@ private struct FailureDetail: Encodable {
 
 private struct ArgumentValidationError: Error {
     let message: String
+}
+
+private struct EmptySupervisionState: RelaySupervisionStateReading {
+    func attentionInbox() async -> [RelayTaskSummary] { [] }
+    func currentUsage() async -> RelayControllerUsage? { nil }
+    func taskReferenceContext() async -> RelayTaskReferenceContext { .init() }
 }

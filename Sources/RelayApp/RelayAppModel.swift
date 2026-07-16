@@ -18,7 +18,9 @@ final class RelayAppModel {
     private let providerFactory:
         (@Sendable () -> any CodexThreadProviding)?
     private var commandHandler: (any RelayCommandHandling)?
+    private var pendingInteractionBroker: RelayPendingInteractionBroker?
     private var runtime: RelayAppRuntime?
+    private var pendingInteractionTask: Task<Void, Never>?
     private var voiceAwaitingAnswer = false
 
     private var loadedThreads: [CodexThread] = []
@@ -27,6 +29,8 @@ final class RelayAppModel {
     var commandText = ""
     private(set) var composerPhase: RelayComposerPhase = .idle
     private(set) var latestResponse: String?
+    private(set) var pendingInteractionsByThreadID:
+        [String: RelayPendingInteraction] = [:]
 
     var activityStore: RelayActivityStore? {
         runtime?.activityStore
@@ -54,13 +58,20 @@ final class RelayAppModel {
     init(
         providerFactory: (@Sendable
             () -> any CodexThreadProviding)? = nil,
-        commandHandler: (any RelayCommandHandling)? = nil
+        commandHandler: (any RelayCommandHandling)? = nil,
+        pendingInteractionBroker: RelayPendingInteractionBroker? = nil
     ) {
         self.providerFactory = providerFactory
         self.commandHandler = commandHandler
+        self.pendingInteractionBroker = pendingInteractionBroker
     }
 
     func start() async {
+        if let pendingInteractionBroker, pendingInteractionTask == nil {
+            await startPendingInteractionObservation(
+                broker: pendingInteractionBroker
+            )
+        }
         guard runtime == nil, commandHandler == nil else { return }
 
         let runtime = RelayAppRuntime(
@@ -73,6 +84,10 @@ final class RelayAppModel {
         )
         self.runtime = runtime
         commandHandler = runtime.commandHandler
+        pendingInteractionBroker = runtime.pendingInteractionBroker
+        await startPendingInteractionObservation(
+            broker: runtime.pendingInteractionBroker
+        )
         await runtime.activityStore.start()
 
         do {
@@ -161,6 +176,52 @@ final class RelayAppModel {
         composerPhase = .idle
     }
 
+    func pendingInteraction(
+        threadID: String
+    ) -> RelayPendingInteraction? {
+        pendingInteractionsByThreadID[threadID]
+    }
+
+    func selectTask(threadID: String) async {
+        await activityStore?.select(threadID: threadID)
+    }
+
+    func submitPendingAnswers(
+        interactionID: String,
+        answers: [String: [String]]
+    ) async throws {
+        guard let pendingInteractionBroker else {
+            throw PendingInteractionError.unavailable
+        }
+        if let interaction = pendingInteractionsByThreadID.values.first(
+            where: { $0.id == interactionID }
+        ) {
+            await selectTask(threadID: interaction.threadID)
+        }
+        try await pendingInteractionBroker.submitAnswers(
+            interactionID: interactionID,
+            answers: answers
+        )
+    }
+
+    func submitPendingDecision(
+        interactionID: String,
+        decision: RelayPendingApprovalDecision
+    ) async throws {
+        guard let pendingInteractionBroker else {
+            throw PendingInteractionError.unavailable
+        }
+        if let interaction = pendingInteractionsByThreadID.values.first(
+            where: { $0.id == interactionID }
+        ) {
+            await selectTask(threadID: interaction.threadID)
+        }
+        try await pendingInteractionBroker.submitDecision(
+            interactionID: interactionID,
+            decision: decision
+        )
+    }
+
     private var canBeginCommand: Bool {
         switch composerPhase {
         case .idle, .failed:
@@ -228,6 +289,29 @@ final class RelayAppModel {
         }
     }
 
+    private func startPendingInteractionObservation(
+        broker: RelayPendingInteractionBroker
+    ) async {
+        guard pendingInteractionTask == nil else { return }
+        let updates = broker.updates
+        pendingInteractionTask = Task { [weak self] in
+            for await interactions in updates {
+                guard let self, !Task.isCancelled else { return }
+                pendingInteractionsByThreadID = Dictionary(
+                    interactions.map { ($0.threadID, $0) },
+                    uniquingKeysWith: { _, newest in newest }
+                )
+            }
+        }
+        do {
+            try await broker.start()
+        } catch {
+            composerPhase = .failed(
+                "Relay could not observe pending Codex requests: \(error.localizedDescription)"
+            )
+        }
+    }
+
     private static func threadComesBefore(
         _ lhs: CodexThread,
         _ rhs: CodexThread
@@ -239,5 +323,15 @@ final class RelayAppModel {
             return false
         }
         return lhs.updatedAt > rhs.updatedAt
+    }
+}
+
+private extension RelayAppModel {
+    enum PendingInteractionError: LocalizedError {
+        case unavailable
+
+        var errorDescription: String? {
+            "Relay cannot answer this request. Open the task in Codex."
+        }
     }
 }

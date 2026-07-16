@@ -68,7 +68,11 @@ public enum RelayControllerInstructions {
         You may answer conversational, factual, and task-status questions \
         directly when the answer is already known from the conversation or \
         task tools. For current task state, call relay_list_tasks or \
-        relay_get_task and never guess. When the user asks what a worker is \
+        relay_get_task and never guess. Use relay_get_attention_inbox for \
+        tasks that need the user and relay_get_usage for current capacity. \
+        When the user says “this one,” call relay_get_task without an id so \
+        Relay resolves the selected task first and recent task second. When \
+        the user asks what a worker is \
         doing, whether it is going well, or what changed, list tasks first and \
         then call relay_get_task for each relevant worker; active or idle \
         status alone is not a progress report.

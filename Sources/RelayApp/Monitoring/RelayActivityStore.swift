@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import RelayBrain
 import RelayCodexBridge
 import RelayCodexClient
 import RelayCore
@@ -13,7 +14,7 @@ extension CodexMonitoringClient: RelayActivityMonitoring {}
 
 @MainActor
 @Observable
-final class RelayActivityStore {
+final class RelayActivityStore: RelaySupervisionStateReading {
     typealias Connect = @Sendable () async throws -> Void
     typealias Sleep = @Sendable (Duration) async throws -> Void
 
@@ -40,6 +41,7 @@ final class RelayActivityStore {
         [String: RelayThreadTokenUsage] = [:]
     private(set) var connectionState: RelayConnectionState = .idle
     private(set) var lastSelectedThreadID: String?
+    private(set) var selectedThreadID: String?
 
     init(
         monitoring: any RelayActivityMonitoring,
@@ -94,7 +96,13 @@ final class RelayActivityStore {
     }
 
     func markRead(threadID: String) async {
+        selectedThreadID = threadID
         publish(await state.markRead(threadID: threadID))
+    }
+
+    func select(threadID: String) async {
+        selectedThreadID = threadID
+        publish(await state.select(threadID: threadID))
     }
 
     func send(
@@ -107,12 +115,14 @@ final class RelayActivityStore {
         guard !prompt.isEmpty else {
             throw CodexTaskOperationsError.emptyPrompt
         }
+        selectedThreadID = threadID
         publish(await state.markRead(threadID: threadID))
         _ = try await tasks.sendToTask(id: threadID, prompt: prompt)
         await refresh()
     }
 
     func interrupt(threadID: String) async throws {
+        selectedThreadID = threadID
         publish(await state.select(threadID: threadID))
         try await tasks.interruptTask(id: threadID)
         await refresh()
@@ -123,6 +133,41 @@ final class RelayActivityStore {
     ) -> Duration {
         let exponent = min(max(attempt, 0), 5)
         return .seconds(min(1 << exponent, 30))
+    }
+
+    func attentionInbox() async -> [RelayTaskSummary] {
+        attentionTasks.map { task in
+            RelayTaskSummary(
+                id: task.id,
+                title: Self.title(for: task),
+                project: task.thread.cwd,
+                status: Self.status(for: task.attentionState),
+                updatedAt: Date(
+                    timeIntervalSince1970:
+                        TimeInterval(task.thread.updatedAt)
+                ),
+                latestUpdate: task.latestUpdate
+            )
+        }
+    }
+
+    func currentUsage() async -> RelayControllerUsage? {
+        guard let usage else { return nil }
+        return RelayControllerUsage(
+            limitID: usage.limitID,
+            limitName: usage.limitName,
+            primary: Self.controllerWindow(usage.primary),
+            secondary: Self.controllerWindow(usage.secondary),
+            resetCreditsAvailableCount:
+                usage.resetCreditsAvailableCount
+        )
+    }
+
+    func taskReferenceContext() async -> RelayTaskReferenceContext {
+        RelayTaskReferenceContext(
+            selectedTaskID: selectedThreadID,
+            lastInteractedTaskID: lastSelectedThreadID
+        )
     }
 
     private func connectAndRefresh() async {
@@ -228,6 +273,40 @@ final class RelayActivityStore {
         usage = values.usage
         tokenUsageByThreadID = values.tokenUsageByThreadID
         lastSelectedThreadID = values.lastSelectedThreadID
+    }
+
+    private static func title(for task: RelayTaskActivity) -> String {
+        let name = task.thread.name?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if let name, !name.isEmpty { return name }
+        let preview = task.thread.preview.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        return preview.isEmpty ? "Untitled Codex task" : preview
+    }
+
+    private static func status(
+        for state: RelayTaskAttentionState
+    ) -> String {
+        switch state {
+        case .needsInput: "needsInput"
+        case .failed: "failed"
+        case .ready: "ready"
+        case .running: "running"
+        case .idle: "idle"
+        }
+    }
+
+    private static func controllerWindow(
+        _ window: RelayRateLimitWindow?
+    ) -> RelayControllerUsageWindow? {
+        guard let window else { return nil }
+        return RelayControllerUsageWindow(
+            usedPercent: window.usedPercent,
+            windowDurationMinutes: window.windowDurationMins,
+            resetsAt: window.resetsAt
+        )
     }
 
     isolated deinit {

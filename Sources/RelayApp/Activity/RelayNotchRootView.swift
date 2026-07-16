@@ -6,11 +6,16 @@ struct RelayNotchRootView: View {
     let activity: RelayActivityPresentation
     let capacity: RelayCapacityPresentation
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
+    let pendingInteractionsByThreadID: [String: RelayPendingInteraction]
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
     let topInset: Double
     let submitCommand: () -> Void
+    let submitPendingAnswers:
+        (String, [String: [String]]) async throws -> Void
+    let submitPendingDecision:
+        (String, RelayPendingApprovalDecision) async throws -> Void
     let requestPresentation: (RelayPanelPresentation) -> Void
     let reportContentHeight: (RelayPanelPresentation, Double) -> Void
 
@@ -59,10 +64,14 @@ struct RelayNotchRootView: View {
                         activity: activity,
                         capacity: capacity,
                         tokenUsageByThreadID: tokenUsageByThreadID,
+                        pendingInteractionsByThreadID:
+                            pendingInteractionsByThreadID,
                         actions: actions,
                         commandText: $commandText,
                         composerPhase: composerPhase,
                         submitCommand: submitCommand,
+                        submitPendingAnswers: submitPendingAnswers,
+                        submitPendingDecision: submitPendingDecision,
                         collapse: collapse,
                         contentHeightChanged: reportExpandedHeight
                     )

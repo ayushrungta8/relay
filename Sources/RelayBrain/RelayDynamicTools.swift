@@ -3,6 +3,8 @@ import Foundation
 public enum RelayDynamicToolName: String, CaseIterable, Sendable {
     case listTasks = "relay_list_tasks"
     case getTask = "relay_get_task"
+    case getAttentionInbox = "relay_get_attention_inbox"
+    case getUsage = "relay_get_usage"
     case startTask = "relay_start_task"
     case sendToTask = "relay_send_to_task"
     case interruptTask = "relay_interrupt_task"
@@ -67,9 +69,11 @@ public enum RelayDynamicTools {
         RelayDynamicToolDefinition(
             name: RelayDynamicToolName.getTask.rawValue,
             description: """
-            Get one visible Codex worker task by its exact id, including its \
-            title, project, status, last update time, and most recent worker \
-            progress message when available.
+            Get one visible Codex worker task, including its title, project, \
+            status, last update time, and most recent worker progress message. \
+            Pass an exact id when known. Omit it for references such as “this \
+            one”; Relay resolves the selected task first, then the most \
+            recently interacted task, and otherwise asks for clarification.
             """,
             inputSchema: RelayJSONSchema(
                 properties: [
@@ -77,8 +81,26 @@ public enum RelayDynamicTools {
                         description: "The exact id of the worker task to inspect."
                     ),
                 ],
-                required: ["id"]
+                required: []
             )
+        ),
+        RelayDynamicToolDefinition(
+            name: RelayDynamicToolName.getAttentionInbox.rawValue,
+            description: """
+            Read the current prioritized tasks that need the user's attention, \
+            including requests waiting for input or approval, failures, and \
+            unread completed work.
+            """,
+            inputSchema: RelayJSONSchema(properties: [:], required: [])
+        ),
+        RelayDynamicToolDefinition(
+            name: RelayDynamicToolName.getUsage.rawValue,
+            description: """
+            Read current Codex account-capacity windows and reset-credit \
+            availability. Missing backend values remain unavailable rather \
+            than being reported as zero.
+            """,
+            inputSchema: RelayJSONSchema(properties: [:], required: [])
         ),
         RelayDynamicToolDefinition(
             name: RelayDynamicToolName.startTask.rawValue,

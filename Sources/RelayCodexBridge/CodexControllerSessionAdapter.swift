@@ -276,7 +276,9 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
             return
         }
 
-        guard let result = Self.safeAutomaticResponse(
+        guard let controllerID = cachedController?.id,
+              Self.requestThreadID(request) == controllerID,
+              let result = Self.safeAutomaticResponse(
             to: request.method
         ) else {
             return
@@ -326,6 +328,13 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
         default:
             nil
         }
+    }
+
+    private static func requestThreadID(
+        _ request: CodexServerRequest
+    ) -> String? {
+        request.params?["threadId"]?.stringValue
+            ?? request.params?["conversationId"]?.stringValue
     }
 
     private func handleNotification(

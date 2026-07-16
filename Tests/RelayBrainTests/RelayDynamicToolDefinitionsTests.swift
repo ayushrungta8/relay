@@ -4,12 +4,14 @@ import Testing
 
 struct RelayDynamicToolDefinitionsTests {
     @Test
-    func exposesExactlyTheFiveRelayTaskTools() {
+    func exposesTaskAndSupervisionTools() {
         #expect(
             RelayDynamicTools.definitions.map(\.name)
                 == [
                     "relay_list_tasks",
                     "relay_get_task",
+                    "relay_get_attention_inbox",
+                    "relay_get_usage",
                     "relay_start_task",
                     "relay_send_to_task",
                     "relay_interrupt_task",
@@ -42,15 +44,18 @@ struct RelayDynamicToolDefinitionsTests {
 
     @Test(
         arguments: [
-            ("relay_list_tasks", []),
-            ("relay_get_task", ["id"]),
-            ("relay_start_task", ["cwd", "prompt"]),
-            ("relay_send_to_task", ["id", "prompt"]),
-            ("relay_interrupt_task", ["id"]),
+            ("relay_list_tasks", [], []),
+            ("relay_get_task", ["id"], []),
+            ("relay_get_attention_inbox", [], []),
+            ("relay_get_usage", [], []),
+            ("relay_start_task", ["cwd", "prompt"], ["cwd", "prompt"]),
+            ("relay_send_to_task", ["id", "prompt"], ["id", "prompt"]),
+            ("relay_interrupt_task", ["id"], ["id"]),
         ]
     )
     func schemaRequiresExactlyItsDeclaredArguments(
         toolName: String,
+        propertyArguments: [String],
         requiredArguments: [String]
     ) throws {
         let definition = try #require(
@@ -58,7 +63,7 @@ struct RelayDynamicToolDefinitionsTests {
         )
         let propertyNames = definition.inputSchema.properties.keys.sorted()
 
-        #expect(propertyNames == requiredArguments)
+        #expect(propertyNames == propertyArguments)
         #expect(definition.inputSchema.required.sorted() == requiredArguments)
         #expect(
             definition.inputSchema.properties.values.allSatisfy {

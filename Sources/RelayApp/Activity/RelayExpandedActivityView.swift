@@ -5,10 +5,15 @@ struct RelayExpandedActivityView: View {
     let activity: RelayActivityPresentation
     let capacity: RelayCapacityPresentation
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
+    let pendingInteractionsByThreadID: [String: RelayPendingInteraction]
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
     let submitCommand: () -> Void
+    let submitPendingAnswers:
+        (String, [String: [String]]) async throws -> Void
+    let submitPendingDecision:
+        (String, RelayPendingApprovalDecision) async throws -> Void
     let collapse: () -> Void
     let contentHeightChanged: (Double) -> Void
 
@@ -72,7 +77,11 @@ struct RelayExpandedActivityView: View {
                             systemImage: "exclamationmark.bubble",
                             tasks: activity.attentionTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
-                            actions: actions
+                            pendingInteractionsByThreadID:
+                                pendingInteractionsByThreadID,
+                            actions: actions,
+                            submitPendingAnswers: submitPendingAnswers,
+                            submitPendingDecision: submitPendingDecision
                         )
 
                         TaskSection(
@@ -80,7 +89,11 @@ struct RelayExpandedActivityView: View {
                             systemImage: "ellipsis.circle",
                             tasks: activity.runningTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
-                            actions: actions
+                            pendingInteractionsByThreadID:
+                                pendingInteractionsByThreadID,
+                            actions: actions,
+                            submitPendingAnswers: submitPendingAnswers,
+                            submitPendingDecision: submitPendingDecision
                         )
 
                         TaskSection(
@@ -88,7 +101,11 @@ struct RelayExpandedActivityView: View {
                             systemImage: "clock",
                             tasks: activity.recentTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
-                            actions: actions
+                            pendingInteractionsByThreadID:
+                                pendingInteractionsByThreadID,
+                            actions: actions,
+                            submitPendingAnswers: submitPendingAnswers,
+                            submitPendingDecision: submitPendingDecision
                         )
                     }
 
@@ -182,7 +199,13 @@ private extension RelayExpandedActivityView {
         let systemImage: String
         let tasks: [RelayTaskActivity]
         let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
+        let pendingInteractionsByThreadID:
+            [String: RelayPendingInteraction]
         let actions: RelayTaskActions
+        let submitPendingAnswers:
+            (String, [String: [String]]) async throws -> Void
+        let submitPendingDecision:
+            (String, RelayPendingApprovalDecision) async throws -> Void
 
         var body: some View {
             if !tasks.isEmpty {
@@ -201,9 +224,195 @@ private extension RelayExpandedActivityView {
                             actions: actions,
                             primaryAction: {}
                         )
+
+                        if task.attentionState == .needsInput {
+                            RelayPendingInteractionView(
+                                presentation:
+                                    RelayPendingInteractionPresentation(
+                                        task: task,
+                                        ownedInteraction:
+                                            pendingInteractionsByThreadID[task.id]
+                                    ),
+                                openInCodex: {
+                                    try await actions.open(task)
+                                },
+                                submitAnswers: submitPendingAnswers,
+                                submitDecision: submitPendingDecision
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+private struct RelayPendingInteractionView: View {
+    let presentation: RelayPendingInteractionPresentation
+    let openInCodex: () async throws -> Void
+    let submitAnswers: (String, [String: [String]]) async throws -> Void
+    let submitDecision:
+        (String, RelayPendingApprovalDecision) async throws -> Void
+
+    @State private var answers: [String: String] = [:]
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(presentation.explanation)
+                .font(.caption)
+                .foregroundStyle(RelayPalette.secondaryText)
+
+            switch presentation.action {
+            case .openInCodex:
+                Button("Open in Codex", systemImage: "arrow.up.forward.app") {
+                    perform(openInCodex)
+                }
+            case .answerQuestions:
+                questionControls
+            case .reviewApproval:
+                approvalControls
+            }
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(RelayPalette.failed)
+            }
+        }
+        .padding(12)
+        .background(
+            RelayPalette.elevatedSurface,
+            in: .rect(cornerRadius: 10)
+        )
+        .disabled(isSubmitting)
+    }
+
+    @ViewBuilder
+    private var questionControls: some View {
+        if let interaction = presentation.interaction,
+           case let .questions(questions) = interaction.kind {
+            ForEach(questions) { question in
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(question.header)
+                        .font(.callout.bold())
+                    Text(question.question)
+                        .font(.caption)
+                        .foregroundStyle(RelayPalette.secondaryText)
+
+                    ForEach(question.options, id: \.label) { option in
+                        Button {
+                            answers[question.id] = option.label
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.label)
+                                Text(option.description)
+                                    .font(.caption)
+                                    .foregroundStyle(
+                                        RelayPalette.secondaryText
+                                    )
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    if question.options.isEmpty || question.allowsOther {
+                        if question.isSecret {
+                            SecureField(
+                                "Answer",
+                                text: answerBinding(for: question.id)
+                            )
+                        } else {
+                            TextField(
+                                "Answer",
+                                text: answerBinding(for: question.id)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Button("Submit answer", systemImage: "paperplane.fill") {
+                perform {
+                    let payload = Dictionary(
+                        uniqueKeysWithValues: questions.map {
+                            ($0.id, [answers[$0.id] ?? ""])
+                        }
+                    )
+                    try await submitAnswers(interaction.id, payload)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(
+                questions.contains {
+                    answers[$0.id]?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty != false
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var approvalControls: some View {
+        if let interaction = presentation.interaction,
+           case let .approval(approval) = interaction.kind {
+            Text(approval.title)
+                .font(.callout.bold())
+            if let detail = approval.detail {
+                Text(detail)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+            }
+            HStack {
+                if approval.canApprove {
+                    Button("Approve", systemImage: "checkmark") {
+                        perform {
+                            try await submitDecision(
+                                interaction.id,
+                                .approve
+                            )
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                if approval.canDecline {
+                    Button("Decline", systemImage: "xmark") {
+                        perform {
+                            try await submitDecision(
+                                interaction.id,
+                                .decline
+                            )
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+    }
+
+    private func answerBinding(for questionID: String) -> Binding<String> {
+        Binding(
+            get: { answers[questionID] ?? "" },
+            set: { answers[questionID] = $0 }
+        )
+    }
+
+    private func perform(
+        _ operation: @escaping () async throws -> Void
+    ) {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        errorMessage = nil
+        Task {
+            do {
+                try await operation()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isSubmitting = false
         }
     }
 }

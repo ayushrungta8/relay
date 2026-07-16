@@ -46,7 +46,7 @@ struct RelayContractsTests {
                 == RelayControllerInstructions.developer
         )
         #expect(configuration.dynamicTools == RelayDynamicTools.definitions)
-        #expect(configuration.dynamicTools.count == 5)
+        #expect(configuration.dynamicTools.count == 7)
 
         let instructions = configuration.developerInstructions.lowercased()
         #expect(instructions.contains("liaison"))
