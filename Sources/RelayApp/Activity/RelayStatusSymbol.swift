@@ -5,33 +5,11 @@ struct RelayStatusSymbol: View {
     let state: RelayTaskAttentionState
 
     var systemName: String {
-        switch state {
-        case .needsInput:
-            "exclamationmark.bubble.fill"
-        case .failed:
-            "xmark.octagon.fill"
-        case .ready:
-            "checkmark.circle.fill"
-        case .running:
-            "ellipsis.circle.fill"
-        case .idle:
-            "clock.fill"
-        }
+        RelayAccessibilityContract.status(for: state).systemImage
     }
 
     var label: String {
-        switch state {
-        case .needsInput:
-            "Needs input"
-        case .failed:
-            "Failed"
-        case .ready:
-            "Ready"
-        case .running:
-            "Running"
-        case .idle:
-            "Idle"
-        }
+        RelayAccessibilityContract.status(for: state).label
     }
 
     var body: some View {

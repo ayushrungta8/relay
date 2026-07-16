@@ -84,16 +84,25 @@ struct RelayNotchRootView: View {
     }
 
     private var contentAnimation: Animation {
-        reduceMotion
-            ? .linear(duration: 0.12)
-            : .easeOut(duration: 0.2)
+        switch RelayAccessibilityContract.motionStyle(
+            reduceMotion: reduceMotion
+        ) {
+        case .crossfade:
+            .linear(duration: 0.12)
+        case .anchoredMovement:
+            .easeOut(duration: 0.2)
+        }
     }
 
     private var contentTransition: AnyTransition {
-        if reduceMotion {
-            return .opacity
+        switch RelayAccessibilityContract.motionStyle(
+            reduceMotion: reduceMotion
+        ) {
+        case .crossfade:
+            .opacity
+        case .anchoredMovement:
+            .opacity.combined(with: .offset(y: -8))
         }
-        return .opacity.combined(with: .offset(y: -8))
     }
 
     private func expand() {

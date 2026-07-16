@@ -17,18 +17,16 @@ struct RelayApplication: App {
 
     var body: some Scene {
         MenuBarExtra {
-            RelayMenuView(model: model)
+            RelayMenuView(openRelay: openRelay)
         } label: {
             Label("Relay", systemImage: "arrow.left.arrow.right")
+                .accessibilityLabel(
+                    RelayAccessibilityContract.menuBarLabel
+                )
         }
-        .menuBarExtraStyle(.window)
-        .commands {
-            CommandMenu("Relay") {
-                Button("Toggle Relay") {
-                    panelController.toggle()
-                }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-            }
-        }
+    }
+
+    private func openRelay() {
+        panelController.present(.expanded)
     }
 }

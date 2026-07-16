@@ -85,11 +85,13 @@ struct RelayAppModelTests {
         let model = RelayAppModel(providerFactory: { provider })
 
         async let first: Void = model.refresh()
-        await Task.yield()
-        async let second: Void = model.refresh()
-        _ = await (first, second)
+        await provider.waitUntilRefreshStarts()
+        await model.refresh()
+        let callCount = await provider.callCount()
+        await provider.finishRefresh()
+        _ = await first
 
-        #expect(await provider.callCount() == 1)
+        #expect(callCount == 1)
     }
 
     @MainActor
@@ -150,11 +152,25 @@ private actor StubThreadProvider: CodexThreadProviding {
 
 private actor CountingThreadProvider: CodexThreadProviding {
     private var calls = 0
+    private var finishContinuation: CheckedContinuation<Void, Never>?
 
     func loadThreads(limit: Int) async throws -> [CodexThread] {
         calls += 1
-        try await Task.sleep(for: .milliseconds(60))
+        await withCheckedContinuation { continuation in
+            finishContinuation = continuation
+        }
         return []
+    }
+
+    func waitUntilRefreshStarts() async {
+        while calls == 0 {
+            await Task.yield()
+        }
+    }
+
+    func finishRefresh() {
+        finishContinuation?.resume()
+        finishContinuation = nil
     }
 
     func callCount() -> Int {

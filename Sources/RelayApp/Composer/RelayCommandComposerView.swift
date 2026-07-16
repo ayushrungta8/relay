@@ -15,9 +15,12 @@ struct RelayCommandComposerView: View {
                     .submitLabel(.send)
                     .onSubmit(submitIfPossible)
                     .disabled(isInputDisabled)
+                    .accessibilityLabel(
+                        RelayAccessibilityContract.commandFieldLabel
+                    )
 
                 Button(
-                    "Send command",
+                    RelayAccessibilityContract.sendCommandLabel,
                     systemImage: "arrow.up",
                     action: submitIfPossible
                 )
@@ -26,6 +29,10 @@ struct RelayCommandComposerView: View {
                 .disabled(!canSubmit)
                 .help("Send command")
                 .accessibilityHint("Submits the current command")
+                .keyboardShortcut(
+                    RelayAccessibilityContract.sendCommandKeyEquivalent,
+                    modifiers: []
+                )
             }
             .controlSize(.large)
 

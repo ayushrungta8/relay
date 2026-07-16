@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIGURATION="${CONFIGURATION:-debug}"
+CONFIGURATION="${CONFIGURATION:-release}"
 APP_DIR="$ROOT_DIR/dist/Relay.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -18,7 +18,9 @@ BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BIN_DIR/RelayApp" "$MACOS_DIR/RelayApp"
+chmod +x "$MACOS_DIR/RelayApp"
 cp "$ROOT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
+plutil -lint "$CONTENTS_DIR/Info.plist" >/dev/null
 
 IDENTITY_SEARCH_ARGS=()
 CODESIGN_KEYCHAIN_ARGS=()
