@@ -1,0 +1,331 @@
+import Foundation
+import RelayBrain
+import RelayCodexBridge
+import RelayCodexClient
+import Testing
+
+struct CodexControllerSessionAdapterTests {
+    @Test
+    func createsAndPersistsAControllerThreadWithDynamicTools() async throws {
+        let rpc = ControllerRPCStub()
+        let store = ControllerThreadStoreStub()
+        let session = CodexControllerSessionAdapter(
+            rpc: rpc,
+            store: store,
+            cwd: "/Users/test/Work"
+        )
+
+        let controller = try await session.ensureControllerThread(
+            configuration: .default
+        )
+
+        #expect(controller.id == "controller-1")
+        #expect(await store.loadThreadID() == "controller-1")
+
+        let startParams = try #require(
+            await rpc.params(for: "thread/start")?.objectValue
+        )
+        #expect(startParams["ephemeral"] == .bool(false))
+        #expect(startParams["cwd"] == .string("/Users/test/Work"))
+        #expect(
+            startParams["developerInstructions"]?.stringValue
+                == RelayControllerInstructions.developer
+        )
+        #expect(
+            startParams["dynamicTools"]?.arrayValue?.count
+                == RelayDynamicTools.definitions.count
+        )
+    }
+
+    @Test
+    func routesDynamicToolCallsAndPublishesTheCompletedAnswer() async throws {
+        let rpc = ControllerRPCStub()
+        let store = ControllerThreadStoreStub()
+        let session = CodexControllerSessionAdapter(
+            rpc: rpc,
+            store: store,
+            cwd: "/Users/test/Work"
+        )
+        let controller = try await session.ensureControllerThread(
+            configuration: .default
+        )
+        let stream = try await session.submitUserText(
+            "What is the status?",
+            to: controller
+        )
+        var iterator = stream.makeAsyncIterator()
+
+        await rpc.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("rpc-call-1"),
+                    method: "item/tool/call",
+                    params: .object([
+                        "threadId": .string("controller-1"),
+                        "turnId": .string("turn-1"),
+                        "callId": .string("tool-call-1"),
+                        "tool": .string("relay_list_tasks"),
+                        "arguments": .object([:]),
+                    ])
+                )
+            )
+        )
+
+        let toolEvent = try #require(try await iterator.next())
+        guard case let .dynamicToolCall(call) = toolEvent else {
+            Issue.record("Expected a dynamic tool call")
+            return
+        }
+        #expect(call.id == "tool-call-1")
+        #expect(call.toolName == "relay_list_tasks")
+
+        try await session.completeToolCall(
+            call,
+            with: RelayToolCallResult(
+                success: true,
+                text: #"{"ok":true,"tasks":[]}"#
+            )
+        )
+
+        let response = try #require(
+            await rpc.response(for: .string("rpc-call-1"))?.objectValue
+        )
+        #expect(response["success"] == .bool(true))
+        #expect(
+            response["contentItems"]?.arrayValue?.first?["text"]?.stringValue
+                == #"{"ok":true,"tasks":[]}"#
+        )
+
+        await rpc.emit(
+            .notification(
+                method: "item/agentMessage/delta",
+                params: .object([
+                    "threadId": .string("controller-1"),
+                    "turnId": .string("turn-1"),
+                    "itemId": .string("message-1"),
+                    "delta": .string("Two tasks are active."),
+                ])
+            )
+        )
+        await rpc.emit(
+            .notification(
+                method: "turn/completed",
+                params: .object([
+                    "threadId": .string("controller-1"),
+                    "turn": .object([
+                        "id": .string("turn-1"),
+                        "status": .string("completed"),
+                        "items": .array([
+                            .object([
+                                "id": .string("message-1"),
+                                "type": .string("agentMessage"),
+                                "phase": .string("final_answer"),
+                                "text": .string("Two tasks are active."),
+                            ]),
+                        ]),
+                    ]),
+                ])
+            )
+        )
+
+        let finalEvent = try #require(try await iterator.next())
+        #expect(finalEvent == .finalText("Two tasks are active."))
+        #expect(try await iterator.next() == nil)
+    }
+
+    @Test
+    func resumesTheStoredToolEnabledControllerThread() async throws {
+        let rpc = ControllerRPCStub(
+            storedThread: .object([
+                "id": .string("old-controller"),
+            ])
+        )
+        let store = ControllerThreadStoreStub(id: "old-controller")
+        let session = CodexControllerSessionAdapter(
+            rpc: rpc,
+            store: store,
+            cwd: "/Users/test/Work"
+        )
+
+        let controller = try await session.ensureControllerThread(
+            configuration: .default
+        )
+
+        #expect(controller.id == "old-controller")
+        #expect(await store.loadThreadID() == "old-controller")
+        let methods = await rpc.recordedMethods()
+        #expect(methods.contains("thread/resume"))
+        #expect(!methods.contains("thread/start"))
+
+        let resumeParams = try #require(
+            await rpc.params(for: "thread/resume")?.objectValue
+        )
+        #expect(resumeParams["approvalPolicy"] == .string("never"))
+        #expect(resumeParams["sandbox"] == .string("read-only"))
+        #expect(resumeParams["excludeTurns"] == .bool(true))
+        #expect(resumeParams["cwd"] == .string("/Users/test/Work"))
+        #expect(
+            resumeParams["developerInstructions"]?.stringValue
+                == RelayControllerInstructions.developer
+        )
+    }
+
+    @Test
+    func safelyDeclinesWorkerRequestsInsteadOfLeavingThemHanging()
+        async throws
+    {
+        let rpc = ControllerRPCStub()
+        let session = CodexControllerSessionAdapter(
+            rpc: rpc,
+            store: ControllerThreadStoreStub(),
+            cwd: "/Users/test/Work"
+        )
+        _ = try await session.ensureControllerThread(
+            configuration: .default
+        )
+
+        await rpc.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("worker-approval"),
+                    method: "item/commandExecution/requestApproval",
+                    params: .object([
+                        "threadId": .string("worker-1"),
+                        "turnId": .string("worker-turn-1"),
+                    ])
+                )
+            )
+        )
+        await rpc.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("worker-input"),
+                    method: "item/tool/requestUserInput",
+                    params: .object([
+                        "threadId": .string("worker-1"),
+                        "turnId": .string("worker-turn-1"),
+                    ])
+                )
+            )
+        )
+
+        let approval = try #require(
+            await rpc.waitForResponse(
+                to: .string("worker-approval")
+            )?.objectValue
+        )
+        #expect(approval["decision"] == .string("decline"))
+
+        let input = try #require(
+            await rpc.waitForResponse(
+                to: .string("worker-input")
+            )?.objectValue
+        )
+        #expect(input["answers"] == .object([:]))
+    }
+}
+
+private actor ControllerThreadStoreStub: RelayControllerThreadStoring {
+    private var id: String?
+
+    init(id: String? = nil) {
+        self.id = id
+    }
+
+    func loadThreadID() -> String? {
+        id
+    }
+
+    func saveThreadID(_ id: String) {
+        self.id = id
+    }
+}
+
+private actor ControllerRPCStub: CodexSessionRPC {
+    nonisolated let events: AsyncStream<CodexServerEvent>
+
+    private let continuation: AsyncStream<CodexServerEvent>.Continuation
+    private var requests: [(String, JSONValue)] = []
+    private var responses: [JSONRPCRequestID: JSONValue] = [:]
+    private let storedThread: JSONValue?
+
+    init(storedThread: JSONValue? = nil) {
+        let pair = AsyncStream<CodexServerEvent>.makeStream(
+            bufferingPolicy: .unbounded
+        )
+        events = pair.stream
+        continuation = pair.continuation
+        self.storedThread = storedThread
+    }
+
+    func start() async throws {}
+
+    func stop() async {
+        continuation.finish()
+    }
+
+    func requestJSON(
+        method: String,
+        params: JSONValue,
+        timeout: Duration
+    ) async throws -> JSONValue {
+        requests.append((method, params))
+        switch method {
+        case "thread/start":
+            return .object([
+                "thread": .object(["id": .string("controller-1")]),
+            ])
+        case "thread/read":
+            return .object([
+                "thread": storedThread
+                    ?? .object(["id": .string("controller-1")]),
+            ])
+        case "thread/resume":
+            let id = params["threadId"]?.stringValue
+                ?? "controller-1"
+            return .object([
+                "thread": storedThread
+                    ?? .object(["id": .string(id)]),
+            ])
+        case "turn/start":
+            return .object([
+                "turn": .object(["id": .string("turn-1")]),
+            ])
+        default:
+            return .object([:])
+        }
+    }
+
+    func respond(
+        to requestID: JSONRPCRequestID,
+        result: JSONValue
+    ) async throws {
+        responses[requestID] = result
+    }
+
+    func emit(_ event: CodexServerEvent) {
+        continuation.yield(event)
+    }
+
+    func params(for method: String) -> JSONValue? {
+        requests.last { $0.0 == method }?.1
+    }
+
+    func response(for id: JSONRPCRequestID) -> JSONValue? {
+        responses[id]
+    }
+
+    func waitForResponse(
+        to id: JSONRPCRequestID
+    ) async -> JSONValue? {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while responses[id] == nil, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return responses[id]
+    }
+
+    func recordedMethods() -> [String] {
+        requests.map(\.0)
+    }
+}
