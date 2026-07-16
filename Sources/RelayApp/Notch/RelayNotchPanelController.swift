@@ -3,25 +3,38 @@ import SwiftUI
 
 @MainActor
 final class RelayNotchPanelController {
-    private let model: RelayAppModel
-    private let panel: RelayNotchPanel
+    private let nonactivatingPanel: RelayNotchPanel
+    private let interactivePanel: RelayNotchPanel
+    private let presentationState: RelayNotchPanelState
+    private let hostingView: NSHostingView<RelayNotchPanelHost>
+    private var activePanel: RelayNotchPanel?
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
     private var currentScreen: NSScreen?
 
-    private(set) var presentation: RelayPanelPresentation = .hidden
+    var presentation: RelayPanelPresentation {
+        presentationState.presentation
+    }
     var shouldDismissOnOutsideClick: () -> Bool = { true }
 
     init(model: RelayAppModel) {
-        self.model = model
-        panel = RelayNotchPanel(
-            contentRect: .zero,
-            styleMask: [.borderless, .fullSizeContentView],
-            backing: .buffered,
-            defer: true
+        let presentationState = RelayNotchPanelState()
+        self.presentationState = presentationState
+        hostingView = NSHostingView(
+            rootView: RelayNotchPanelHost(
+                model: model,
+                state: presentationState
+            )
         )
-        configurePanel()
-        updateHost(for: .hidden)
+        nonactivatingPanel = RelayNotchPanel(
+            initialPresentation: .hidden
+        )
+        interactivePanel = RelayNotchPanel(
+            initialPresentation: .compact
+        )
+        configurePanel(nonactivatingPanel)
+        configurePanel(interactivePanel)
+        nonactivatingPanel.contentView = hostingView
     }
 
     func present(
@@ -36,10 +49,15 @@ final class RelayNotchPanelController {
             return
         }
 
-        self.presentation = presentation
+        let panel = panel(for: presentation)
+        if activePanel !== panel {
+            activePanel?.orderOut(nil)
+        }
+        attachHost(to: panel)
+        activePanel = panel
+        presentationState.presentation = presentation
         currentScreen = targetScreen
-        panel.relayPresentation = presentation
-        updateHost(for: presentation)
+        panel.updatePresentation(presentation)
 
         let frame = RelayNotchGeometry.frame(
             for: presentation,
@@ -51,12 +69,13 @@ final class RelayNotchPanelController {
         )
         apply(
             frame: frame,
+            to: panel,
             transition: presentation.transition(
                 reduceMotion:
                     NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             )
         )
-        orderPanel(for: presentation)
+        orderPanel(panel, for: presentation)
         installOutsideClickMonitoring()
     }
 
@@ -70,15 +89,17 @@ final class RelayNotchPanelController {
     }
 
     func dismiss() {
-        presentation = .hidden
-        panel.relayPresentation = .hidden
-        panel.orderOut(nil)
+        presentationState.presentation = .hidden
+        if activePanel === nonactivatingPanel {
+            nonactivatingPanel.updatePresentation(.hidden)
+        }
+        activePanel?.orderOut(nil)
+        activePanel = nil
         currentScreen = nil
         removeOutsideClickMonitoring()
-        updateHost(for: .hidden)
     }
 
-    private func configurePanel() {
+    private func configurePanel(_ panel: RelayNotchPanel) {
         panel.level = .statusBar
         panel.backgroundColor = .clear
         panel.isOpaque = false
@@ -98,16 +119,28 @@ final class RelayNotchPanelController {
         }
     }
 
-    private func updateHost(for presentation: RelayPanelPresentation) {
-        panel.contentView = NSHostingView(
-            rootView: RelayNotchPanelHost(
-                model: model,
-                presentation: presentation
-            )
-        )
+    private func attachHost(to panel: RelayNotchPanel) {
+        guard panel.contentView !== hostingView else { return }
+
+        nonactivatingPanel.contentView = nil
+        interactivePanel.contentView = nil
+        panel.contentView = hostingView
     }
 
-    private func orderPanel(for presentation: RelayPanelPresentation) {
+    private func panel(
+        for presentation: RelayPanelPresentation
+    ) -> RelayNotchPanel {
+        if presentation.allowsActivation {
+            interactivePanel
+        } else {
+            nonactivatingPanel
+        }
+    }
+
+    private func orderPanel(
+        _ panel: RelayNotchPanel,
+        for presentation: RelayPanelPresentation
+    ) {
         if presentation.allowsActivation {
             NSApplication.shared.activate()
             panel.makeKeyAndOrderFront(nil)
@@ -118,6 +151,7 @@ final class RelayNotchPanelController {
 
     private func apply(
         frame: CGRect,
+        to panel: RelayNotchPanel,
         transition: RelayPanelPresentation.Transition
     ) {
         switch transition {
@@ -179,9 +213,10 @@ final class RelayNotchPanelController {
         ]
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: eventMask
-        ) { [weak self] _ in
+        ) { [weak self] event in
+            let click = RelayPanelClick(globalEvent: event)
             Task { @MainActor in
-                self?.dismissIfOutsidePanel(at: NSEvent.mouseLocation)
+                self?.dismissIfOutsidePanel(at: click.screenLocation)
             }
         }
         localClickMonitor = NSEvent.addLocalMonitorForEvents(
@@ -194,7 +229,8 @@ final class RelayNotchPanelController {
 
     private func dismissIfOutsidePanel(at location: CGPoint) {
         guard
-            !panel.frame.contains(location),
+            let activePanel,
+            !activePanel.frame.contains(location),
             shouldDismissOnOutsideClick()
         else {
             return

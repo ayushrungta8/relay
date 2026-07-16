@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RelayNotchPanelHost: View {
     let model: RelayAppModel
-    let presentation: RelayPanelPresentation
+    let state: RelayNotchPanelState
 
     var body: some View {
         ZStack {
@@ -17,14 +17,14 @@ struct RelayNotchPanelHost: View {
             Label("Relay", systemImage: "arrow.left.arrow.right")
                 .font(.headline)
                 .foregroundStyle(.white)
-                .opacity(presentation == .hidden ? 0 : 1)
+                .opacity(state.presentation == .hidden ? 0 : 1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
 
     private var accessibilityLabel: String {
-        switch presentation {
+        switch state.presentation {
         case .hidden:
             "Relay hidden"
         case .peek:

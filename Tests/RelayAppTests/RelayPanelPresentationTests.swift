@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import Testing
 @testable import RelayApp
 
@@ -25,6 +27,67 @@ struct RelayPanelPresentationTests {
         #expect(!RelayPanelPresentation.peek.allowsActivation)
         #expect(RelayPanelPresentation.compact.allowsActivation)
         #expect(RelayPanelPresentation.expanded.allowsActivation)
+    }
+
+    @Test
+    func panelsKeepSeparateNonactivatingAndInteractiveStyles() {
+        let nonactivatingPanel = RelayNotchPanel(
+            initialPresentation: .hidden
+        )
+        let interactivePanel = RelayNotchPanel(
+            initialPresentation: .compact
+        )
+
+        nonactivatingPanel.updatePresentation(.peek)
+        #expect(
+            nonactivatingPanel.styleMask.contains(.nonactivatingPanel)
+        )
+        #expect(!nonactivatingPanel.canBecomeKey)
+
+        interactivePanel.updatePresentation(.expanded)
+        #expect(
+            !interactivePanel.styleMask.contains(.nonactivatingPanel)
+        )
+        #expect(interactivePanel.canBecomeKey)
+    }
+
+    @Test
+    func globalClickCapturesTheEventsScreenLocation() throws {
+        let eventLocation = CGPoint(x: -340, y: 712)
+        let event = try #require(
+            NSEvent.mouseEvent(
+                with: .leftMouseDown,
+                location: eventLocation,
+                modifierFlags: [],
+                timestamp: 42,
+                windowNumber: 0,
+                context: nil,
+                eventNumber: 1,
+                clickCount: 1,
+                pressure: 1
+            )
+        )
+
+        let click = RelayPanelClick(globalEvent: event)
+
+        #expect(click.screenLocation == eventLocation)
+    }
+
+    @Test
+    func hostPresentationUpdatesThroughPersistentReferenceState() {
+        let model = RelayAppModel()
+        let state = RelayNotchPanelState()
+        let hostingView = NSHostingView(
+            rootView: RelayNotchPanelHost(model: model, state: state)
+        )
+        let hostIdentity = ObjectIdentifier(hostingView)
+
+        state.presentation = .compact
+        state.presentation = .expanded
+
+        #expect(ObjectIdentifier(hostingView) == hostIdentity)
+        #expect(hostingView.rootView.state === state)
+        #expect(hostingView.rootView.state.presentation == .expanded)
     }
 
     @Test
