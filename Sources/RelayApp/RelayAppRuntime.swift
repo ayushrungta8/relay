@@ -25,6 +25,7 @@ final class RelayAppRuntime {
         activityStore = RelayActivityStore(
             monitoring: monitoringClient,
             tasks: taskClient,
+            controllerThreadStore: controllerThreadStore,
             connect: {
                 try await rpc.start()
             }

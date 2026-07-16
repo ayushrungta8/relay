@@ -144,6 +144,55 @@ struct RelayActivityReducerTests {
         #expect(reducer.recentTasks.first?.hasUnreadCompletion == false)
     }
 
+    @Test
+    func hidesUnnamedControllerUsingItsAuthoritativeStoredID() {
+        var reducer = RelayActivityReducer()
+
+        reducer.merge(
+            snapshot: RelayMonitoringSnapshot(
+                tasks: [
+                    activity(
+                        id: "controller",
+                        updatedAt: 200,
+                        status: .active
+                    ),
+                    activity(
+                        id: "worker",
+                        updatedAt: 100,
+                        status: .active
+                    ),
+                ],
+                usage: nil
+            ),
+            controllerThreadID: "controller"
+        )
+
+        #expect(reducer.runningTasks.map(\.id) == ["worker"])
+    }
+
+    @Test
+    func initiallyFailedTaskIsNotMarkedUnreadWithoutATransition() {
+        var reducer = RelayActivityReducer()
+
+        reducer.merge(
+            snapshot: RelayMonitoringSnapshot(
+                tasks: [
+                    activity(
+                        id: "failed",
+                        updatedAt: 100,
+                        status: .systemError
+                    ),
+                ],
+                usage: nil
+            )
+        )
+
+        #expect(reducer.attentionTasks.first?.id == "failed")
+        #expect(
+            reducer.attentionTasks.first?.hasUnreadCompletion == false
+        )
+    }
+
     private func activity(
         id: String,
         updatedAt: Int,

@@ -28,9 +28,16 @@ nonisolated struct RelayActivityReducer: Sendable {
         orderedTasks.filter { $0.attentionState == .idle }
     }
 
-    mutating func merge(snapshot: RelayMonitoringSnapshot) {
+    mutating func merge(
+        snapshot: RelayMonitoringSnapshot,
+        controllerThreadID: String? = nil
+    ) {
         var merged: [String: RelayTaskActivity] = [:]
-        for task in snapshot.tasks where !Self.isController(task) {
+        for task in snapshot.tasks
+        where !Self.isController(
+            task,
+            controllerThreadID: controllerThreadID
+        ) {
             let previous = tasksByID[task.id]
             merged[task.id] = Self.merging(
                 task,
@@ -104,8 +111,10 @@ nonisolated struct RelayActivityReducer: Sendable {
     ) -> RelayTaskActivity {
         let becameCompleted = previous?.thread.status == .active
             && task.thread.status == .idle
-        let becameFailed = previous?.thread.status != .systemError
-            && task.thread.status == .systemError
+        let becameFailed = previous.map {
+            $0.thread.status != .systemError
+                && task.thread.status == .systemError
+        } ?? false
         return RelayTaskActivity(
             thread: task.thread,
             latestUpdate: task.latestUpdate,
@@ -116,8 +125,14 @@ nonisolated struct RelayActivityReducer: Sendable {
         )
     }
 
-    private static func isController(_ task: RelayTaskActivity) -> Bool {
-        task.thread.name?
+    private static func isController(
+        _ task: RelayTaskActivity,
+        controllerThreadID: String?
+    ) -> Bool {
+        if task.id == controllerThreadID {
+            return true
+        }
+        return task.thread.name?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .caseInsensitiveCompare("Relay Controller") == .orderedSame
     }
@@ -127,9 +142,13 @@ actor RelayActivityState {
     private var reducer = RelayActivityReducer()
 
     func merge(
-        snapshot: RelayMonitoringSnapshot
+        snapshot: RelayMonitoringSnapshot,
+        controllerThreadID: String?
     ) -> RelayActivityValues {
-        reducer.merge(snapshot: snapshot)
+        reducer.merge(
+            snapshot: snapshot,
+            controllerThreadID: controllerThreadID
+        )
         return RelayActivityValues(reducer: reducer)
     }
 

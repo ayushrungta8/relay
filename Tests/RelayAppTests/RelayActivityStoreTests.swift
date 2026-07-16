@@ -117,6 +117,45 @@ struct RelayActivityStoreTests {
         #expect(await sleeps.durations().contains(.seconds(1)))
     }
 
+    @MainActor
+    @Test
+    func successfulRefreshCancelsScheduledReconnect() async {
+        let monitoring = MonitoringStub(
+            results: [
+                .failure(StoreFixtureError.offline),
+                .success(.init(tasks: [], usage: nil)),
+            ]
+        )
+        let sleepProbe = ReconnectSleepProbe()
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {},
+            sleep: { duration in
+                try await sleepProbe.sleep(for: duration)
+            }
+        )
+
+        await store.start()
+        for _ in 0..<100 {
+            if await sleepProbe.hasStartedReconnect() {
+                break
+            }
+            await Task.yield()
+        }
+
+        await store.refresh()
+        for _ in 0..<100 {
+            if await sleepProbe.wasReconnectCancelled() {
+                break
+            }
+            await Task.yield()
+        }
+
+        #expect(store.connectionState.isConnected)
+        #expect(await sleepProbe.wasReconnectCancelled())
+    }
+
     private func activity(
         id: String,
         updatedAt: Int,
@@ -209,6 +248,43 @@ private actor SleepRecorder {
 
     func durations() -> [Duration] {
         recorded
+    }
+}
+
+private actor ReconnectSleepProbe {
+    private var reconnectStarted = false
+    private var reconnectCancelled = false
+    private var reconnectContinuation:
+        CheckedContinuation<Void, any Error>?
+
+    func sleep(for duration: Duration) async throws {
+        if duration == .seconds(30) {
+            throw CancellationError()
+        }
+        reconnectStarted = true
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                reconnectContinuation = continuation
+            }
+        } onCancel: {
+            Task {
+                await self.cancelReconnect()
+            }
+        }
+    }
+
+    func hasStartedReconnect() -> Bool {
+        reconnectStarted
+    }
+
+    func wasReconnectCancelled() -> Bool {
+        reconnectCancelled
+    }
+
+    private func cancelReconnect() {
+        reconnectCancelled = true
+        reconnectContinuation?.resume(throwing: CancellationError())
+        reconnectContinuation = nil
     }
 }
 

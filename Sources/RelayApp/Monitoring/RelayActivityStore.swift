@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import RelayCodexBridge
 import RelayCodexClient
 import RelayCore
 
@@ -18,6 +19,8 @@ final class RelayActivityStore {
 
     private let monitoring: any RelayActivityMonitoring
     private let tasks: any CodexTaskOperating
+    private let controllerThreadStore:
+        (any RelayControllerThreadStoring)?
     private let connect: Connect
     private let sleep: Sleep
     private let state = RelayActivityState()
@@ -41,6 +44,8 @@ final class RelayActivityStore {
     init(
         monitoring: any RelayActivityMonitoring,
         tasks: any CodexTaskOperating,
+        controllerThreadStore:
+            (any RelayControllerThreadStoring)? = nil,
         connect: @escaping Connect,
         sleep: @escaping Sleep = { duration in
             try await Task.sleep(for: duration)
@@ -48,6 +53,7 @@ final class RelayActivityStore {
     ) {
         self.monitoring = monitoring
         self.tasks = tasks
+        self.controllerThreadStore = controllerThreadStore
         self.connect = connect
         self.sleep = sleep
     }
@@ -67,7 +73,15 @@ final class RelayActivityStore {
 
         do {
             let snapshot = try await monitoring.snapshot(limit: 25)
-            publish(await state.merge(snapshot: snapshot))
+            let controllerThreadID =
+                await controllerThreadStore?.loadThreadID()
+            publish(
+                await state.merge(
+                    snapshot: snapshot,
+                    controllerThreadID: controllerThreadID
+                )
+            )
+            cancelReconnect()
             reconnectAttempt = 0
             connectionState = .connected(lastUpdatedAt: Date())
         } catch {
@@ -200,6 +214,11 @@ final class RelayActivityStore {
             self.reconnectTask = nil
             await self.connectAndRefresh()
         }
+    }
+
+    private func cancelReconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
     }
 
     private func publish(_ values: RelayActivityValues) {
