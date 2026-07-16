@@ -35,7 +35,7 @@ extension CodexControllerSessionError: LocalizedError {
 
 public actor CodexControllerSessionAdapter: RelayControllerSession {
     private let rpc: any CodexSessionRPC
-    private let store: any RelayControllerThreadStoring
+    private let identity: RelayControllerIdentity
     private let cwd: String
 
     private var isStarted = false
@@ -50,7 +50,17 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
         cwd: String
     ) {
         self.rpc = rpc
-        self.store = store
+        identity = RelayControllerIdentity(store: store)
+        self.cwd = cwd
+    }
+
+    public init(
+        rpc: any CodexSessionRPC,
+        identity: RelayControllerIdentity,
+        cwd: String
+    ) {
+        self.rpc = rpc
+        self.identity = identity
         self.cwd = cwd
     }
 
@@ -67,14 +77,18 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
             return cachedController
         }
 
-        if let storedID = await store.loadThreadID(),
+        if let storedID = await identity.recoverThreadID(),
            let resumed = await resumeStoredController(
                id: storedID,
                configuration: configuration
            ) {
             cachedController = resumed
+            await identity.activate(threadID: resumed.id)
             await nameControllerThread(id: resumed.id)
             return resumed
+        }
+        if let staleID = await identity.currentThreadID() {
+            await identity.discard(threadID: staleID)
         }
 
         let tools = try encodeAsJSONValue(configuration.dynamicTools)
@@ -99,8 +113,8 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
         }
 
         let controller = RelayControllerThread(id: id)
+        await identity.activate(threadID: id)
         cachedController = controller
-        await store.saveThreadID(id)
         await nameControllerThread(id: id)
         return controller
     }

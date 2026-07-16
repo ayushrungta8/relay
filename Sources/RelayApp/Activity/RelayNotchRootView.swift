@@ -6,7 +6,7 @@ struct RelayNotchRootView: View {
     let activity: RelayActivityPresentation
     let capacity: RelayCapacityPresentation
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
-    let pendingInteractionsByThreadID: [String: RelayPendingInteraction]
+    let pendingInteractions: [RelayPendingInteraction]
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
@@ -64,8 +64,7 @@ struct RelayNotchRootView: View {
                         activity: activity,
                         capacity: capacity,
                         tokenUsageByThreadID: tokenUsageByThreadID,
-                        pendingInteractionsByThreadID:
-                            pendingInteractionsByThreadID,
+                        pendingInteractions: pendingInteractions,
                         actions: actions,
                         commandText: $commandText,
                         composerPhase: composerPhase,

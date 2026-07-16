@@ -47,6 +47,38 @@ struct RelayPendingInteractionPresentationTests {
 
     @MainActor
     @Test
+    func appModelPreservesParallelSameThreadInteractionsInArrivalOrder()
+        async throws
+    {
+        let rpc = PresentationPendingRPCStub()
+        let broker = RelayPendingInteractionBroker(rpc: rpc)
+        let model = RelayAppModel(
+            commandHandler: PresentationCommandHandlerStub(),
+            pendingInteractionBroker: broker
+        )
+        await model.start()
+
+        await rpc.emit(.serverRequest(pendingRequest(
+            requestID: "z-first",
+            itemID: "first"
+        )))
+        await rpc.emit(.serverRequest(pendingRequest(
+            requestID: "a-second",
+            itemID: "second"
+        )))
+        for _ in 0..<200
+        where model.pendingInteractions(threadID: "worker").count < 2 {
+            await Task.yield()
+        }
+
+        #expect(
+            model.pendingInteractions(threadID: "worker").map(\.id)
+                == ["worker:first:z-first", "worker:second:a-second"]
+        )
+    }
+
+    @MainActor
+    @Test
     func ownedQuestionsCanBeAnsweredInRelay() {
         let interaction = RelayPendingInteraction(
             id: "owned-question",
@@ -75,6 +107,7 @@ struct RelayPendingInteractionPresentationTests {
         #expect(presentation.isRelayOwned)
         #expect(presentation.action == .answerQuestions)
         #expect(presentation.interaction == interaction)
+        #expect(presentation.allowsTaskManagement)
     }
 
     @MainActor
@@ -88,6 +121,7 @@ struct RelayPendingInteractionPresentationTests {
         #expect(!presentation.isRelayOwned)
         #expect(presentation.action == .openInCodex)
         #expect(presentation.interaction == nil)
+        #expect(!presentation.allowsTaskManagement)
         #expect(
             presentation.explanation
                 == "This request belongs to another Codex client. Open the task in Codex to respond."
@@ -118,6 +152,47 @@ struct RelayPendingInteractionPresentationTests {
 
         #expect(presentation.action == .reviewApproval)
         #expect(presentation.isRelayOwned)
+    }
+
+    @MainActor
+    @Test
+    func changedInteractionIdentityClearsReusedSecretAnswers() {
+        let question = RelayPendingQuestion(
+            id: "credential",
+            header: "Credential",
+            question: "Enter the credential",
+            isSecret: true
+        )
+        var draft = RelayPendingAnswerDraft(interactionID: "old")
+        draft.setAnswer("secret-value", for: question.id)
+        #expect(draft.canSubmit(questions: [question]))
+
+        draft.synchronize(interactionID: "new")
+
+        #expect(draft.answer(for: question.id).isEmpty)
+        #expect(!draft.canSubmit(questions: [question]))
+    }
+
+    @MainActor
+    @Test
+    func duplicateOptionLabelsHaveDistinctStableIdentities() {
+        let question = RelayPendingQuestion(
+            id: "environment",
+            header: "Environment",
+            question: "Which environment?",
+            options: [
+                .init(label: "Default", description: "First source"),
+                .init(label: "Default", description: "Second source"),
+            ]
+        )
+
+        let options = RelayPendingInteractionPresentation.options(
+            for: question
+        )
+
+        #expect(options.map(\.id).count == 2)
+        #expect(Set(options.map(\.id)).count == 2)
+        #expect(options.map(\.option.label) == ["Default", "Default"])
     }
 }
 
@@ -153,5 +228,27 @@ private func waitingTask(id: String) -> RelayTaskActivity {
             status: .active,
             activeFlags: [.waitingOnUserInput]
         )
+    )
+}
+
+private func pendingRequest(
+    requestID: String,
+    itemID: String
+) -> CodexServerRequest {
+    CodexServerRequest(
+        id: .string(requestID),
+        method: "item/tool/requestUserInput",
+        params: .object([
+            "threadId": .string("worker"),
+            "turnId": .string("turn"),
+            "itemId": .string(itemID),
+            "questions": .array([
+                .object([
+                    "id": .string("choice"),
+                    "header": .string("Choice"),
+                    "question": .string("Which option?"),
+                ]),
+            ]),
+        ])
     )
 }

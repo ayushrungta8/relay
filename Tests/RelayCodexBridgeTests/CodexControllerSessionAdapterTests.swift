@@ -273,6 +273,76 @@ struct CodexControllerSessionAdapterTests {
             await rpc.response(for: .string("worker-legacy-approval")) == nil
         )
     }
+
+    @Test
+    func liveIdentityPreventsControllerOwnershipWhenPersistenceFails()
+        async throws
+    {
+        let store = NonPersistingControllerThreadStore()
+        let identity = RelayControllerIdentity(store: store)
+        let adapterRPC = ControllerRPCStub()
+        let brokerRPC = ControllerRPCStub()
+        let session = CodexControllerSessionAdapter(
+            rpc: adapterRPC,
+            identity: identity,
+            cwd: "/Users/test/Work"
+        )
+        let broker = RelayPendingInteractionBroker(
+            rpc: brokerRPC,
+            controllerIdentity: identity
+        )
+
+        let controller = try await session.ensureControllerThread(
+            configuration: .default
+        )
+        #expect(controller.id == "controller-1")
+        #expect(await store.loadThreadID() == nil)
+        #expect(await identity.currentThreadID() == "controller-1")
+
+        try await broker.start()
+        let controllerRequest = CodexServerRequest(
+            id: .string("controller-owned"),
+            method: "item/commandExecution/requestApproval",
+            params: .object([
+                "threadId": .string("controller-1"),
+                "turnId": .string("turn"),
+                "itemId": .string("controller-item"),
+            ])
+        )
+        await adapterRPC.emit(.serverRequest(controllerRequest))
+        await brokerRPC.emit(.serverRequest(controllerRequest))
+        await brokerRPC.emit(
+            .serverRequest(
+                CodexServerRequest(
+                    id: .string("worker-owned"),
+                    method: "item/tool/requestUserInput",
+                    params: .object([
+                        "threadId": .string("worker"),
+                        "turnId": .string("turn"),
+                        "itemId": .string("worker-item"),
+                        "questions": .array([
+                            .object([
+                                "id": .string("choice"),
+                                "header": .string("Choice"),
+                                "question": .string("Choose?"),
+                            ]),
+                        ]),
+                    ])
+                )
+            )
+        )
+
+        let response = try #require(await adapterRPC.waitForResponse(
+            to: .string("controller-owned")
+        )?.objectValue)
+        #expect(response["decision"] == .string("decline"))
+        for _ in 0..<200
+        where await broker.interaction(threadID: "worker") == nil {
+            await Task.yield()
+        }
+        #expect(await broker.interaction(threadID: "worker") != nil)
+        #expect(await broker.interaction(threadID: "controller-1") == nil)
+    }
 }
 
 private actor ControllerThreadStoreStub: RelayControllerThreadStoring {
@@ -289,6 +359,13 @@ private actor ControllerThreadStoreStub: RelayControllerThreadStoring {
     func saveThreadID(_ id: String) {
         self.id = id
     }
+}
+
+private actor NonPersistingControllerThreadStore:
+    RelayControllerThreadStoring
+{
+    func loadThreadID() -> String? { nil }
+    func saveThreadID(_ id: String) {}
 }
 
 private actor ControllerRPCStub: CodexSessionRPC {

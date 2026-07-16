@@ -12,6 +12,7 @@ public enum RelayPendingInteractionBrokerError:
     case wrongInteractionKind
     case unsupportedDecision
     case incompleteAnswers
+    case submissionInProgress
 }
 
 extension RelayPendingInteractionBrokerError: LocalizedError {
@@ -25,6 +26,8 @@ extension RelayPendingInteractionBrokerError: LocalizedError {
             "That decision is not supported by this Codex request."
         case .incompleteAnswers:
             "Answer every question before submitting."
+        case .submissionInProgress:
+            "Relay is already submitting a response to this request."
         }
     }
 }
@@ -33,20 +36,21 @@ public actor RelayPendingInteractionBroker {
     public nonisolated let updates: AsyncStream<[RelayPendingInteraction]>
 
     private let rpc: any CodexSessionRPC
-    private let controllerThreadStore:
-        (any RelayControllerThreadStoring)?
+    private let controllerIdentity: RelayControllerIdentity?
     private let updateContinuation:
         AsyncStream<[RelayPendingInteraction]>.Continuation
     private var records: [String: Record] = [:]
     private var eventTask: Task<Void, Never>?
+    private var generation = 0
+    private var nextRecordSerial = 0
+    private var nextArrivalOrder = 0
 
     public init(
         rpc: any CodexSessionRPC,
-        controllerThreadStore:
-            (any RelayControllerThreadStoring)? = nil
+        controllerIdentity: RelayControllerIdentity? = nil
     ) {
         self.rpc = rpc
-        self.controllerThreadStore = controllerThreadStore
+        self.controllerIdentity = controllerIdentity
         let pair = AsyncStream<[RelayPendingInteraction]>.makeStream(
             bufferingPolicy: .bufferingNewest(1)
         )
@@ -67,7 +71,7 @@ public actor RelayPendingInteractionBroker {
                 guard !Task.isCancelled else { return }
                 switch event {
                 case let .serverRequest(request):
-                    _ = await self?.retain(request)
+                    await self?.receive(request)
                 case .lifecycle(.failed),
                      .lifecycle(.stopping),
                      .lifecycle(.stopped):
@@ -80,20 +84,19 @@ public actor RelayPendingInteractionBroker {
         try await rpc.start()
     }
 
-    @discardableResult
-    public func retain(
+    private func receive(
         _ request: CodexServerRequest
-    ) async -> RelayPendingInteraction? {
+    ) async {
         guard let params = request.params?.objectValue,
               let threadID = Self.threadID(in: params) else {
-            return nil
+            return
         }
-        let controllerThreadID = await controllerThreadStore?.loadThreadID()
+        let controllerThreadID = await controllerIdentity?.currentThreadID()
         if threadID == controllerThreadID {
-            return nil
+            return
         }
         guard let parsed = Self.parse(request, params: params) else {
-            return nil
+            return
         }
 
         let interactionID = Self.interactionID(
@@ -107,17 +110,31 @@ public actor RelayPendingInteractionBroker {
             turnID: params["turnId"]?.stringValue,
             kind: parsed.kind
         )
+        if let existing = records[interactionID],
+           existing.token.generation == generation {
+            return
+        }
+        let token = RecordToken(
+            generation: generation,
+            serial: nextRecordSerial
+        )
+        nextRecordSerial += 1
         records[interactionID] = Record(
             requestID: request.id,
             interaction: interaction,
-            responseProtocol: parsed.responseProtocol
+            responseProtocol: parsed.responseProtocol,
+            token: token,
+            arrivalOrder: nextArrivalOrder,
+            isSubmitting: false
         )
+        nextArrivalOrder += 1
         publish()
-        return interaction
     }
 
     public func interactions() -> [RelayPendingInteraction] {
-        records.values.map(\.interaction).sorted { $0.id < $1.id }
+        records.values.sorted {
+            $0.arrivalOrder < $1.arrivalOrder
+        }.map(\.interaction)
     }
 
     public func interaction(id: String) -> RelayPendingInteraction? {
@@ -126,17 +143,16 @@ public actor RelayPendingInteractionBroker {
 
     public func interaction(threadID: String) -> RelayPendingInteraction? {
         records.values
-            .map(\.interaction)
             .filter { $0.threadID == threadID }
-            .sorted { $0.id < $1.id }
-            .first
+            .sorted { $0.arrivalOrder < $1.arrivalOrder }
+            .first?.interaction
     }
 
     public func submitAnswers(
         interactionID: String,
         answers: [String: [String]]
     ) async throws {
-        guard let record = records[interactionID] else {
+        guard var record = records[interactionID] else {
             throw RelayPendingInteractionBrokerError
                 .unknownInteraction(interactionID)
         }
@@ -149,25 +165,40 @@ public actor RelayPendingInteractionBroker {
               answers.values.allSatisfy({ !$0.isEmpty }) else {
             throw RelayPendingInteractionBrokerError.incompleteAnswers
         }
+        guard !record.isSubmitting else {
+            throw RelayPendingInteractionBrokerError.submissionInProgress
+        }
+        record.isSubmitting = true
+        records[interactionID] = record
 
         let encoded = answers.mapValues { values in
             JSONValue.object([
                 "answers": .array(values.map(JSONValue.string)),
             ])
         }
-        try await rpc.respond(
-            to: record.requestID,
-            result: .object(["answers": .object(encoded)])
-        )
-        records.removeValue(forKey: interactionID)
-        publish()
+        do {
+            try await rpc.respond(
+                to: record.requestID,
+                result: .object(["answers": .object(encoded)])
+            )
+            finishSubmission(
+                interactionID: interactionID,
+                token: record.token
+            )
+        } catch {
+            restoreSubmission(
+                interactionID: interactionID,
+                token: record.token
+            )
+            throw error
+        }
     }
 
     public func submitDecision(
         interactionID: String,
         decision: RelayPendingApprovalDecision
     ) async throws {
-        guard let record = records[interactionID] else {
+        guard var record = records[interactionID] else {
             throw RelayPendingInteractionBrokerError
                 .unknownInteraction(interactionID)
         }
@@ -178,6 +209,11 @@ public actor RelayPendingInteractionBroker {
         else {
             throw RelayPendingInteractionBrokerError.unsupportedDecision
         }
+        guard !record.isSubmitting else {
+            throw RelayPendingInteractionBrokerError.submissionInProgress
+        }
+        record.isSubmitting = true
+        records[interactionID] = record
 
         let result: JSONValue
         switch (record.responseProtocol, decision) {
@@ -203,9 +239,19 @@ public actor RelayPendingInteractionBroker {
             throw RelayPendingInteractionBrokerError.unsupportedDecision
         }
 
-        try await rpc.respond(to: record.requestID, result: result)
-        records.removeValue(forKey: interactionID)
-        publish()
+        do {
+            try await rpc.respond(to: record.requestID, result: result)
+            finishSubmission(
+                interactionID: interactionID,
+                token: record.token
+            )
+        } catch {
+            restoreSubmission(
+                interactionID: interactionID,
+                token: record.token
+            )
+            throw error
+        }
     }
 
     private func publish() {
@@ -213,8 +259,31 @@ public actor RelayPendingInteractionBroker {
     }
 
     private func discardUnanswerableRequests() {
+        generation += 1
         guard !records.isEmpty else { return }
         records.removeAll()
+        publish()
+    }
+
+    private func finishSubmission(
+        interactionID: String,
+        token: RecordToken
+    ) {
+        guard records[interactionID]?.token == token else { return }
+        records.removeValue(forKey: interactionID)
+        publish()
+    }
+
+    private func restoreSubmission(
+        interactionID: String,
+        token: RecordToken
+    ) {
+        guard var record = records[interactionID],
+              record.token == token else {
+            return
+        }
+        record.isSubmitting = false
+        records[interactionID] = record
         publish()
     }
 }
@@ -224,6 +293,16 @@ private extension RelayPendingInteractionBroker {
         let requestID: JSONRPCRequestID
         let interaction: RelayPendingInteraction
         let responseProtocol: ResponseProtocol
+        let token: RecordToken
+        let arrivalOrder: Int
+        var isSubmitting: Bool
+
+        var threadID: String { interaction.threadID }
+    }
+
+    struct RecordToken: Equatable {
+        let generation: Int
+        let serial: Int
     }
 
     struct ParsedRequest {

@@ -21,6 +21,9 @@ final class RelayAppRuntime {
     ) {
         let rpc = PersistentCodexAppServerClient()
         let controllerThreadStore = RelayControllerThreadFileStore()
+        let controllerIdentity = RelayControllerIdentity(
+            store: controllerThreadStore
+        )
         let taskClient = CodexTaskOperationsClient(rpc: rpc)
         let monitoringClient = CodexMonitoringClient(client: rpc)
         activityStore = RelayActivityStore(
@@ -33,7 +36,7 @@ final class RelayAppRuntime {
         )
         pendingInteractionBroker = RelayPendingInteractionBroker(
             rpc: rpc,
-            controllerThreadStore: controllerThreadStore
+            controllerIdentity: controllerIdentity
         )
         let taskOperations = CodexRelayTaskOperationsAdapter(
             client: taskClient,
@@ -45,7 +48,7 @@ final class RelayAppRuntime {
         )
         let controllerSession = CodexControllerSessionAdapter(
             rpc: rpc,
-            store: controllerThreadStore,
+            identity: controllerIdentity,
             cwd: Self.controllerWorkingDirectory
         )
         let controllerRuntime = RelayControllerRuntime(

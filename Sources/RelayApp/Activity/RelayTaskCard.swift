@@ -12,6 +12,7 @@ struct RelayTaskCard: View {
     let layout: Layout
     let actions: RelayTaskActions
     let primaryAction: () -> Void
+    var showsActionMenu = true
 
     @State private var isHovering = false
     @State private var isComposing = false
@@ -58,7 +59,7 @@ struct RelayTaskCard: View {
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityHint(primaryActionHint)
 
-                if layout == .expanded {
+                if layout == .expanded, showsActionMenu {
                     Menu("Task actions", systemImage: "ellipsis") {
                         Button(
                             "Open in Codex",

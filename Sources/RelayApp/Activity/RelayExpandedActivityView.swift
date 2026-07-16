@@ -5,7 +5,7 @@ struct RelayExpandedActivityView: View {
     let activity: RelayActivityPresentation
     let capacity: RelayCapacityPresentation
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
-    let pendingInteractionsByThreadID: [String: RelayPendingInteraction]
+    let pendingInteractions: [RelayPendingInteraction]
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
@@ -77,8 +77,7 @@ struct RelayExpandedActivityView: View {
                             systemImage: "exclamationmark.bubble",
                             tasks: activity.attentionTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
-                            pendingInteractionsByThreadID:
-                                pendingInteractionsByThreadID,
+                            pendingInteractions: pendingInteractions,
                             actions: actions,
                             submitPendingAnswers: submitPendingAnswers,
                             submitPendingDecision: submitPendingDecision
@@ -89,8 +88,7 @@ struct RelayExpandedActivityView: View {
                             systemImage: "ellipsis.circle",
                             tasks: activity.runningTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
-                            pendingInteractionsByThreadID:
-                                pendingInteractionsByThreadID,
+                            pendingInteractions: pendingInteractions,
                             actions: actions,
                             submitPendingAnswers: submitPendingAnswers,
                             submitPendingDecision: submitPendingDecision
@@ -101,8 +99,7 @@ struct RelayExpandedActivityView: View {
                             systemImage: "clock",
                             tasks: activity.recentTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
-                            pendingInteractionsByThreadID:
-                                pendingInteractionsByThreadID,
+                            pendingInteractions: pendingInteractions,
                             actions: actions,
                             submitPendingAnswers: submitPendingAnswers,
                             submitPendingDecision: submitPendingDecision
@@ -199,8 +196,7 @@ private extension RelayExpandedActivityView {
         let systemImage: String
         let tasks: [RelayTaskActivity]
         let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
-        let pendingInteractionsByThreadID:
-            [String: RelayPendingInteraction]
+        let pendingInteractions: [RelayPendingInteraction]
         let actions: RelayTaskActions
         let submitPendingAnswers:
             (String, [String: [String]]) async throws -> Void
@@ -217,32 +213,57 @@ private extension RelayExpandedActivityView {
                         .accessibilityAddTraits(.isHeader)
 
                     ForEach(tasks) { task in
+                        let ownedInteractions = pendingInteractions.filter {
+                            $0.threadID == task.id
+                        }
+                        let isExternalWaiting =
+                            task.attentionState == .needsInput
+                                && ownedInteractions.isEmpty
                         RelayTaskCard(
                             task: task,
                             tokenUsage: tokenUsageByThreadID[task.id],
                             layout: .expanded,
                             actions: actions,
-                            primaryAction: {}
+                            primaryAction: {},
+                            showsActionMenu: !isExternalWaiting
                         )
 
                         if task.attentionState == .needsInput {
-                            RelayPendingInteractionView(
-                                presentation:
-                                    RelayPendingInteractionPresentation(
+                            if ownedInteractions.isEmpty {
+                                pendingInteractionView(
+                                    task: task,
+                                    interaction: nil
+                                )
+                            } else {
+                                ForEach(ownedInteractions) { interaction in
+                                    pendingInteractionView(
                                         task: task,
-                                        ownedInteraction:
-                                            pendingInteractionsByThreadID[task.id]
-                                    ),
-                                openInCodex: {
-                                    try await actions.open(task)
-                                },
-                                submitAnswers: submitPendingAnswers,
-                                submitDecision: submitPendingDecision
-                            )
+                                        interaction: interaction
+                                    )
+                                    .id(interaction.id)
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
+
+        private func pendingInteractionView(
+            task: RelayTaskActivity,
+            interaction: RelayPendingInteraction?
+        ) -> some View {
+            RelayPendingInteractionView(
+                presentation: RelayPendingInteractionPresentation(
+                    task: task,
+                    ownedInteraction: interaction
+                ),
+                openInCodex: {
+                    try await actions.open(task)
+                },
+                submitAnswers: submitPendingAnswers,
+                submitDecision: submitPendingDecision
+            )
         }
     }
 }
@@ -254,9 +275,28 @@ private struct RelayPendingInteractionView: View {
     let submitDecision:
         (String, RelayPendingApprovalDecision) async throws -> Void
 
-    @State private var answers: [String: String] = [:]
+    @State private var answerDraft: RelayPendingAnswerDraft
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+
+    init(
+        presentation: RelayPendingInteractionPresentation,
+        openInCodex: @escaping () async throws -> Void,
+        submitAnswers: @escaping
+            (String, [String: [String]]) async throws -> Void,
+        submitDecision: @escaping
+            (String, RelayPendingApprovalDecision) async throws -> Void
+    ) {
+        self.presentation = presentation
+        self.openInCodex = openInCodex
+        self.submitAnswers = submitAnswers
+        self.submitDecision = submitDecision
+        _answerDraft = State(
+            initialValue: RelayPendingAnswerDraft(
+                interactionID: presentation.interaction?.id
+            )
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -287,6 +327,14 @@ private struct RelayPendingInteractionView: View {
             in: .rect(cornerRadius: 10)
         )
         .disabled(isSubmitting)
+        .onChange(of: presentation.interaction?.id) { _, interactionID in
+            answerDraft.synchronize(interactionID: interactionID)
+            isSubmitting = false
+            errorMessage = nil
+        }
+        .onDisappear {
+            answerDraft.clear()
+        }
     }
 
     @ViewBuilder
@@ -301,13 +349,20 @@ private struct RelayPendingInteractionView: View {
                         .font(.caption)
                         .foregroundStyle(RelayPalette.secondaryText)
 
-                    ForEach(question.options, id: \.label) { option in
+                    ForEach(
+                        RelayPendingInteractionPresentation.options(
+                            for: question
+                        )
+                    ) { entry in
                         Button {
-                            answers[question.id] = option.label
+                            answerDraft.setAnswer(
+                                entry.option.label,
+                                for: question.id
+                            )
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(option.label)
-                                Text(option.description)
+                                Text(entry.option.label)
+                                Text(entry.option.description)
                                     .font(.caption)
                                     .foregroundStyle(
                                         RelayPalette.secondaryText
@@ -336,21 +391,13 @@ private struct RelayPendingInteractionView: View {
 
             Button("Submit answer", systemImage: "paperplane.fill") {
                 perform {
-                    let payload = Dictionary(
-                        uniqueKeysWithValues: questions.map {
-                            ($0.id, [answers[$0.id] ?? ""])
-                        }
-                    )
+                    let payload = answerDraft.payload(questions: questions)
                     try await submitAnswers(interaction.id, payload)
                 }
             }
             .buttonStyle(.borderedProminent)
             .disabled(
-                questions.contains {
-                    answers[$0.id]?
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .isEmpty != false
-                }
+                !answerDraft.canSubmit(questions: questions)
             )
         }
     }
@@ -395,8 +442,8 @@ private struct RelayPendingInteractionView: View {
 
     private func answerBinding(for questionID: String) -> Binding<String> {
         Binding(
-            get: { answers[questionID] ?? "" },
-            set: { answers[questionID] = $0 }
+            get: { answerDraft.answer(for: questionID) },
+            set: { answerDraft.setAnswer($0, for: questionID) }
         )
     }
 

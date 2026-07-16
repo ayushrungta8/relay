@@ -15,8 +15,7 @@ struct RelayNotchPanelHost: View {
             capacity: capacityPresentation,
             tokenUsageByThreadID:
                 model.activityStore?.tokenUsageByThreadID ?? [:],
-            pendingInteractionsByThreadID:
-                model.pendingInteractionsByThreadID,
+            pendingInteractions: model.pendingInteractions,
             actions: taskActions,
             commandText: $model.commandText,
             composerPhase: model.composerPhase,

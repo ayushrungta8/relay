@@ -29,8 +29,7 @@ final class RelayAppModel {
     var commandText = ""
     private(set) var composerPhase: RelayComposerPhase = .idle
     private(set) var latestResponse: String?
-    private(set) var pendingInteractionsByThreadID:
-        [String: RelayPendingInteraction] = [:]
+    private(set) var pendingInteractions: [RelayPendingInteraction] = []
 
     var activityStore: RelayActivityStore? {
         runtime?.activityStore
@@ -179,7 +178,13 @@ final class RelayAppModel {
     func pendingInteraction(
         threadID: String
     ) -> RelayPendingInteraction? {
-        pendingInteractionsByThreadID[threadID]
+        pendingInteractions(threadID: threadID).first
+    }
+
+    func pendingInteractions(
+        threadID: String
+    ) -> [RelayPendingInteraction] {
+        pendingInteractions.filter { $0.threadID == threadID }
     }
 
     func selectTask(threadID: String) async {
@@ -193,7 +198,7 @@ final class RelayAppModel {
         guard let pendingInteractionBroker else {
             throw PendingInteractionError.unavailable
         }
-        if let interaction = pendingInteractionsByThreadID.values.first(
+        if let interaction = pendingInteractions.first(
             where: { $0.id == interactionID }
         ) {
             await selectTask(threadID: interaction.threadID)
@@ -211,7 +216,7 @@ final class RelayAppModel {
         guard let pendingInteractionBroker else {
             throw PendingInteractionError.unavailable
         }
-        if let interaction = pendingInteractionsByThreadID.values.first(
+        if let interaction = pendingInteractions.first(
             where: { $0.id == interactionID }
         ) {
             await selectTask(threadID: interaction.threadID)
@@ -297,10 +302,7 @@ final class RelayAppModel {
         pendingInteractionTask = Task { [weak self] in
             for await interactions in updates {
                 guard let self, !Task.isCancelled else { return }
-                pendingInteractionsByThreadID = Dictionary(
-                    interactions.map { ($0.threadID, $0) },
-                    uniquingKeysWith: { _, newest in newest }
-                )
+                pendingInteractions = interactions
             }
         }
         do {
