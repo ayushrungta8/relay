@@ -216,29 +216,39 @@ private extension RelayExpandedActivityView {
                         let ownedInteractions = pendingInteractions.filter {
                             $0.threadID == task.id
                         }
-                        let isExternalWaiting =
+                        let waitingPresentation =
                             task.attentionState == .needsInput
-                                && ownedInteractions.isEmpty
+                                ? RelayPendingInteractionPresentation(
+                                    task: task,
+                                    ownedInteraction: ownedInteractions.first
+                                )
+                                : nil
                         RelayTaskCard(
                             task: task,
                             tokenUsage: tokenUsageByThreadID[task.id],
                             layout: .expanded,
                             actions: actions,
                             primaryAction: {},
-                            showsActionMenu: !isExternalWaiting
+                            showsActionMenu:
+                                waitingPresentation?.allowsTaskManagement
+                                    ?? true
                         )
 
-                        if task.attentionState == .needsInput {
+                        if let waitingPresentation {
                             if ownedInteractions.isEmpty {
                                 pendingInteractionView(
                                     task: task,
-                                    interaction: nil
+                                    presentation: waitingPresentation
                                 )
                             } else {
                                 ForEach(ownedInteractions) { interaction in
                                     pendingInteractionView(
                                         task: task,
-                                        interaction: interaction
+                                        presentation:
+                                            RelayPendingInteractionPresentation(
+                                                task: task,
+                                                ownedInteraction: interaction
+                                            )
                                     )
                                     .id(interaction.id)
                                 }
@@ -251,13 +261,10 @@ private extension RelayExpandedActivityView {
 
         private func pendingInteractionView(
             task: RelayTaskActivity,
-            interaction: RelayPendingInteraction?
+            presentation: RelayPendingInteractionPresentation
         ) -> some View {
             RelayPendingInteractionView(
-                presentation: RelayPendingInteractionPresentation(
-                    task: task,
-                    ownedInteraction: interaction
-                ),
+                presentation: presentation,
                 openInCodex: {
                     try await actions.open(task)
                 },

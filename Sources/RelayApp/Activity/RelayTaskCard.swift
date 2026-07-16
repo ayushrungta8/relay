@@ -15,9 +15,8 @@ struct RelayTaskCard: View {
     var showsActionMenu = true
 
     @State private var isHovering = false
-    @State private var isComposing = false
+    @State private var followUp = RelayTaskCardFollowUpState()
     @State private var isSending = false
-    @State private var draft = ""
     @State private var errorMessage: String?
 
     var body: some View {
@@ -130,11 +129,11 @@ struct RelayTaskCard: View {
                 .foregroundStyle(RelayPalette.tertiaryText)
             }
 
-            if isComposing {
+            if showsActionMenu, followUp.isComposing {
                 HStack(spacing: 8) {
                     TextField(
                         "Follow up on this task…",
-                        text: $draft,
+                        text: $followUp.draft,
                         axis: .vertical
                     )
                     .textFieldStyle(.plain)
@@ -181,6 +180,19 @@ struct RelayTaskCard: View {
             in: .rect(cornerRadius: 10)
         )
         .onHover { isHovering = $0 }
+        .onAppear {
+            followUp.synchronize(
+                allowsTaskManagement: showsActionMenu
+            )
+        }
+        .onChange(of: showsActionMenu) { _, allowsTaskManagement in
+            followUp.synchronize(
+                allowsTaskManagement: allowsTaskManagement
+            )
+            if !allowsTaskManagement {
+                errorMessage = nil
+            }
+        }
     }
 
     private var updatedDate: Date {
@@ -226,7 +238,8 @@ struct RelayTaskCard: View {
     }
 
     private var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !followUp.draft
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isSending
     }
 
@@ -251,7 +264,9 @@ struct RelayTaskCard: View {
 
     private func beginFollowUp() {
         errorMessage = nil
-        isComposing = true
+        followUp.beginFollowUp(
+            allowsTaskManagement: showsActionMenu
+        )
     }
 
     private func markRead() {
@@ -272,21 +287,47 @@ struct RelayTaskCard: View {
     }
 
     private func sendFollowUp() {
-        let prompt = draft.trimmingCharacters(
+        let prompt = followUp.draft.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        guard !prompt.isEmpty, !isSending else { return }
+        guard showsActionMenu, !prompt.isEmpty, !isSending else { return }
         isSending = true
         errorMessage = nil
         Task {
             do {
                 try await actions.send(task, prompt)
-                draft = ""
-                isComposing = false
+                followUp.clear()
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = followUp.allowsTaskManagement
+                    ? error.localizedDescription
+                    : nil
             }
             isSending = false
         }
+    }
+}
+
+struct RelayTaskCardFollowUpState: Equatable {
+    private(set) var allowsTaskManagement = true
+    var isComposing = false
+    var draft = ""
+
+    mutating func beginFollowUp(allowsTaskManagement: Bool) {
+        synchronize(allowsTaskManagement: allowsTaskManagement)
+        guard allowsTaskManagement else {
+            return
+        }
+        isComposing = true
+    }
+
+    mutating func synchronize(allowsTaskManagement: Bool) {
+        self.allowsTaskManagement = allowsTaskManagement
+        guard !allowsTaskManagement else { return }
+        clear()
+    }
+
+    mutating func clear() {
+        isComposing = false
+        draft = ""
     }
 }

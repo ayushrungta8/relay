@@ -39,7 +39,8 @@ public actor RelayPendingInteractionBroker {
     private let controllerIdentity: RelayControllerIdentity?
     private let updateContinuation:
         AsyncStream<[RelayPendingInteraction]>.Continuation
-    private var records: [String: Record] = [:]
+    private var records: [RecordKey: Record] = [:]
+    private var recordKeysByInteractionID: [String: RecordKey] = [:]
     private var eventTask: Task<Void, Never>?
     private var generation = 0
     private var nextRecordSerial = 0
@@ -99,27 +100,26 @@ public actor RelayPendingInteractionBroker {
             return
         }
 
-        let interactionID = Self.interactionID(
+        let recordKey = RecordKey(
+            generation: generation,
             requestID: request.id,
             threadID: threadID,
             itemID: params["itemId"]?.stringValue
         )
+        guard records[recordKey] == nil else { return }
+        let interactionID = UUID().uuidString
         let interaction = RelayPendingInteraction(
             id: interactionID,
             threadID: threadID,
             turnID: params["turnId"]?.stringValue,
             kind: parsed.kind
         )
-        if let existing = records[interactionID],
-           existing.token.generation == generation {
-            return
-        }
         let token = RecordToken(
             generation: generation,
             serial: nextRecordSerial
         )
         nextRecordSerial += 1
-        records[interactionID] = Record(
+        records[recordKey] = Record(
             requestID: request.id,
             interaction: interaction,
             responseProtocol: parsed.responseProtocol,
@@ -127,6 +127,7 @@ public actor RelayPendingInteractionBroker {
             arrivalOrder: nextArrivalOrder,
             isSubmitting: false
         )
+        recordKeysByInteractionID[interactionID] = recordKey
         nextArrivalOrder += 1
         publish()
     }
@@ -138,7 +139,8 @@ public actor RelayPendingInteractionBroker {
     }
 
     public func interaction(id: String) -> RelayPendingInteraction? {
-        records[id]?.interaction
+        guard let key = recordKeysByInteractionID[id] else { return nil }
+        return records[key]?.interaction
     }
 
     public func interaction(threadID: String) -> RelayPendingInteraction? {
@@ -152,7 +154,8 @@ public actor RelayPendingInteractionBroker {
         interactionID: String,
         answers: [String: [String]]
     ) async throws {
-        guard var record = records[interactionID] else {
+        guard let recordKey = recordKeysByInteractionID[interactionID],
+              var record = records[recordKey] else {
             throw RelayPendingInteractionBrokerError
                 .unknownInteraction(interactionID)
         }
@@ -169,7 +172,7 @@ public actor RelayPendingInteractionBroker {
             throw RelayPendingInteractionBrokerError.submissionInProgress
         }
         record.isSubmitting = true
-        records[interactionID] = record
+        records[recordKey] = record
 
         let encoded = answers.mapValues { values in
             JSONValue.object([
@@ -182,12 +185,12 @@ public actor RelayPendingInteractionBroker {
                 result: .object(["answers": .object(encoded)])
             )
             finishSubmission(
-                interactionID: interactionID,
+                recordKey: recordKey,
                 token: record.token
             )
         } catch {
             restoreSubmission(
-                interactionID: interactionID,
+                recordKey: recordKey,
                 token: record.token
             )
             throw error
@@ -198,7 +201,8 @@ public actor RelayPendingInteractionBroker {
         interactionID: String,
         decision: RelayPendingApprovalDecision
     ) async throws {
-        guard var record = records[interactionID] else {
+        guard let recordKey = recordKeysByInteractionID[interactionID],
+              var record = records[recordKey] else {
             throw RelayPendingInteractionBrokerError
                 .unknownInteraction(interactionID)
         }
@@ -213,7 +217,7 @@ public actor RelayPendingInteractionBroker {
             throw RelayPendingInteractionBrokerError.submissionInProgress
         }
         record.isSubmitting = true
-        records[interactionID] = record
+        records[recordKey] = record
 
         let result: JSONValue
         switch (record.responseProtocol, decision) {
@@ -242,12 +246,12 @@ public actor RelayPendingInteractionBroker {
         do {
             try await rpc.respond(to: record.requestID, result: result)
             finishSubmission(
-                interactionID: interactionID,
+                recordKey: recordKey,
                 token: record.token
             )
         } catch {
             restoreSubmission(
-                interactionID: interactionID,
+                recordKey: recordKey,
                 token: record.token
             )
             throw error
@@ -262,28 +266,35 @@ public actor RelayPendingInteractionBroker {
         generation += 1
         guard !records.isEmpty else { return }
         records.removeAll()
+        recordKeysByInteractionID.removeAll()
         publish()
     }
 
     private func finishSubmission(
-        interactionID: String,
+        recordKey: RecordKey,
         token: RecordToken
     ) {
-        guard records[interactionID]?.token == token else { return }
-        records.removeValue(forKey: interactionID)
+        guard let record = records[recordKey],
+              record.token == token else {
+            return
+        }
+        records.removeValue(forKey: recordKey)
+        recordKeysByInteractionID.removeValue(
+            forKey: record.interaction.id
+        )
         publish()
     }
 
     private func restoreSubmission(
-        interactionID: String,
+        recordKey: RecordKey,
         token: RecordToken
     ) {
-        guard var record = records[interactionID],
+        guard var record = records[recordKey],
               record.token == token else {
             return
         }
         record.isSubmitting = false
-        records[interactionID] = record
+        records[recordKey] = record
         publish()
     }
 }
@@ -303,6 +314,13 @@ private extension RelayPendingInteractionBroker {
     struct RecordToken: Equatable {
         let generation: Int
         let serial: Int
+    }
+
+    struct RecordKey: Hashable {
+        let generation: Int
+        let requestID: JSONRPCRequestID
+        let threadID: String
+        let itemID: String?
     }
 
     struct ParsedRequest {
@@ -432,20 +450,6 @@ private extension RelayPendingInteractionBroker {
             ),
             responseProtocol: responseProtocol
         )
-    }
-
-    static func interactionID(
-        requestID: JSONRPCRequestID,
-        threadID: String,
-        itemID: String?
-    ) -> String {
-        let requestComponent = switch requestID {
-        case let .integer(value): String(value)
-        case let .string(value): value
-        }
-        return [threadID, itemID, requestComponent]
-            .compactMap { $0 }
-            .joined(separator: ":")
     }
 
     static func threadID(in params: [String: JSONValue]) -> String? {

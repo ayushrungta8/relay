@@ -290,7 +290,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
             return
         }
 
-        guard let controllerID = cachedController?.id,
+        guard let controllerID = await identity.currentThreadID(),
               Self.requestThreadID(request) == controllerID,
               let result = Self.safeAutomaticResponse(
             to: request.method

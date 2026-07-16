@@ -42,7 +42,7 @@ struct RelayPendingInteractionPresentationTests {
             await Task.yield()
         }
 
-        #expect(model.pendingInteraction(threadID: "worker")?.id == "worker:item:pending")
+        #expect(model.pendingInteraction(threadID: "worker") != nil)
     }
 
     @MainActor
@@ -71,10 +71,15 @@ struct RelayPendingInteractionPresentationTests {
             await Task.yield()
         }
 
-        #expect(
-            model.pendingInteractions(threadID: "worker").map(\.id)
-                == ["worker:first:z-first", "worker:second:a-second"]
-        )
+        let interactions = model.pendingInteractions(threadID: "worker")
+        #expect(interactions.count == 2)
+        #expect(Set(interactions.map(\.id)).count == 2)
+        #expect(interactions.compactMap { interaction in
+            guard case let .questions(questions) = interaction.kind else {
+                return nil
+            }
+            return questions.first?.id
+        } == ["first", "second"])
     }
 
     @MainActor
@@ -130,6 +135,43 @@ struct RelayPendingInteractionPresentationTests {
 
     @MainActor
     @Test
+    func ownedToExternalTransitionClearsOpenFollowUpComposer() {
+        let task = waitingTask(id: "transition-worker")
+        let owned = RelayPendingInteractionPresentation(
+            task: task,
+            ownedInteraction: RelayPendingInteraction(
+                id: "owned",
+                threadID: task.id,
+                turnID: "turn",
+                kind: .approval(.init(
+                    title: "Approve?",
+                    canApprove: true,
+                    canDecline: true
+                ))
+            )
+        )
+        let external = RelayPendingInteractionPresentation(
+            task: task,
+            ownedInteraction: nil
+        )
+        var followUp = RelayTaskCardFollowUpState()
+        followUp.beginFollowUp(
+            allowsTaskManagement: owned.allowsTaskManagement
+        )
+        followUp.draft = "private follow-up"
+
+        followUp.synchronize(
+            allowsTaskManagement: external.allowsTaskManagement
+        )
+
+        #expect(external.action == .openInCodex)
+        #expect(!external.allowsTaskManagement)
+        #expect(!followUp.isComposing)
+        #expect(followUp.draft.isEmpty)
+    }
+
+    @MainActor
+    @Test
     func ownedApprovalUsesRelayDecisionControls() {
         let interaction = RelayPendingInteraction(
             id: "owned-approval",
@@ -171,6 +213,50 @@ struct RelayPendingInteractionPresentationTests {
 
         #expect(draft.answer(for: question.id).isEmpty)
         #expect(!draft.canSubmit(questions: [question]))
+    }
+
+    @MainActor
+    @Test
+    func sameProtocolRequestReplacementClearsDraftWithoutEmptyObservation()
+        async throws
+    {
+        let rpc = PresentationPendingRPCStub()
+        let broker = RelayPendingInteractionBroker(rpc: rpc)
+        try await broker.start()
+        let request = pendingRequest(
+            requestID: "same-request",
+            itemID: "same-item"
+        )
+        await rpc.emit(.serverRequest(request))
+        for _ in 0..<200
+        where await broker.interaction(threadID: "worker") == nil {
+            await Task.yield()
+        }
+        let old = try #require(
+            await broker.interaction(threadID: "worker")
+        )
+        guard case let .questions(questions) = old.kind else {
+            Issue.record("Expected questions")
+            return
+        }
+        var draft = RelayPendingAnswerDraft(interactionID: old.id)
+        draft.setAnswer("secret", for: questions[0].id)
+        #expect(draft.canSubmit(questions: questions))
+
+        await rpc.emit(.lifecycle(.failed("Disconnected")))
+        await rpc.emit(.serverRequest(request))
+        for _ in 0..<200
+        where await broker.interaction(threadID: "worker")?.id == old.id {
+            await Task.yield()
+        }
+        let replacement = try #require(
+            await broker.interaction(threadID: "worker")
+        )
+
+        #expect(replacement.id != old.id)
+        draft.synchronize(interactionID: replacement.id)
+        #expect(draft.answer(for: questions[0].id).isEmpty)
+        #expect(!draft.canSubmit(questions: questions))
     }
 
     @MainActor
@@ -244,9 +330,10 @@ private func pendingRequest(
             "itemId": .string(itemID),
             "questions": .array([
                 .object([
-                    "id": .string("choice"),
+                    "id": .string(itemID),
                     "header": .string("Choice"),
                     "question": .string("Which option?"),
+                    "isSecret": .bool(true),
                 ]),
             ]),
         ])

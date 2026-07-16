@@ -170,6 +170,47 @@ struct CodexControllerSessionAdapterTests {
     }
 
     @Test
+    func declinesControllerRequestInterleavedBeforeResumeReturns()
+        async throws
+    {
+        let rpc = ControllerRPCStub(
+            storedThread: .object(["id": .string("old-controller")]),
+            suspendsResume: true
+        )
+        let identity = RelayControllerIdentity(
+            store: ControllerThreadStoreStub(id: "old-controller")
+        )
+        let session = CodexControllerSessionAdapter(
+            rpc: rpc,
+            identity: identity,
+            cwd: "/Users/test/Work"
+        )
+
+        let controllerTask = Task {
+            try await session.ensureControllerThread(
+                configuration: .default
+            )
+        }
+        await rpc.waitForRequest(method: "thread/resume")
+        await rpc.emit(.serverRequest(CodexServerRequest(
+            id: .string("interleaved-controller-approval"),
+            method: "item/commandExecution/requestApproval",
+            params: .object([
+                "threadId": .string("old-controller"),
+                "turnId": .string("turn"),
+            ])
+        )))
+
+        let response = await rpc.waitForResponse(
+            to: .string("interleaved-controller-approval")
+        )
+        await rpc.resolveResume()
+        _ = try await controllerTask.value
+
+        #expect(response?["decision"] == .string("decline"))
+    }
+
+    @Test
     func declinesOnlyHiddenControllerRequestsAndLeavesWorkerRequestsForTheUser()
         async throws
     {
@@ -375,14 +416,20 @@ private actor ControllerRPCStub: CodexSessionRPC {
     private var requests: [(String, JSONValue)] = []
     private var responses: [JSONRPCRequestID: JSONValue] = [:]
     private let storedThread: JSONValue?
+    private let suspendsResume: Bool
+    private var resumeContinuations: [CheckedContinuation<Void, Never>] = []
 
-    init(storedThread: JSONValue? = nil) {
+    init(
+        storedThread: JSONValue? = nil,
+        suspendsResume: Bool = false
+    ) {
         let pair = AsyncStream<CodexServerEvent>.makeStream(
             bufferingPolicy: .unbounded
         )
         events = pair.stream
         continuation = pair.continuation
         self.storedThread = storedThread
+        self.suspendsResume = suspendsResume
     }
 
     func start() async throws {}
@@ -408,6 +455,11 @@ private actor ControllerRPCStub: CodexSessionRPC {
                     ?? .object(["id": .string("controller-1")]),
             ])
         case "thread/resume":
+            if suspendsResume {
+                await withCheckedContinuation { continuation in
+                    resumeContinuations.append(continuation)
+                }
+            }
             let id = params["threadId"]?.stringValue
                 ?? "controller-1"
             return .object([
@@ -454,5 +506,18 @@ private actor ControllerRPCStub: CodexSessionRPC {
 
     func recordedMethods() -> [String] {
         requests.map(\.0)
+    }
+
+    func waitForRequest(method: String) async {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while !requests.contains(where: { $0.0 == method }),
+              ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    func resolveResume() {
+        guard !resumeContinuations.isEmpty else { return }
+        resumeContinuations.removeFirst().resume()
     }
 }

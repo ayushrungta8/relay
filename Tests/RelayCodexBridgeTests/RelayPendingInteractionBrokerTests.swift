@@ -254,7 +254,7 @@ struct RelayPendingInteractionBrokerTests {
     }
 
     @Test
-    func suspendedOldResponseCannotRemoveNewSameIdentityAfterReconnect()
+    func suspendedOldResponseCannotRemoveNewPublicIdentityAfterReconnect()
         async throws
     {
         let rpc = PendingInteractionRPCStub(suspendsResponses: true)
@@ -274,7 +274,7 @@ struct RelayPendingInteractionBrokerTests {
         await waitForInteraction(nil, id: old.id, broker: broker)
 
         let replacement = try await observe(request, with: broker, rpc: rpc)
-        #expect(replacement.id == old.id)
+        #expect(replacement.id != old.id)
         await rpc.resolveNextResponse(.success(()))
         try await oldSubmission
 
@@ -376,6 +376,34 @@ struct RelayPendingInteractionBrokerTests {
     }
 
     @Test
+    func retainsProtocolIDsAndOpaqueComponentsWithoutStringCollisions()
+        async throws
+    {
+        let rpc = PendingInteractionRPCStub()
+        let broker = RelayPendingInteractionBroker(rpc: rpc)
+        try await broker.start()
+
+        await rpc.emit(.serverRequest(questionRequest(
+            requestID: .integer(1),
+            threadID: "worker:part",
+            itemID: "item"
+        )))
+        await rpc.emit(.serverRequest(questionRequest(
+            requestID: .string("1"),
+            threadID: "worker",
+            itemID: "part:item"
+        )))
+        for _ in 0..<200 where await broker.interactions().count < 2 {
+            await Task.yield()
+        }
+
+        let interactions = await broker.interactions()
+        #expect(interactions.count == 2)
+        #expect(Set(interactions.map(\.id)).count == 2)
+        #expect(interactions.map(\.threadID) == ["worker:part", "worker"])
+    }
+
+    @Test
     func doesNotClaimOwnershipOfAnUnobservedExternalRequest() async {
         let broker = RelayPendingInteractionBroker(
             rpc: PendingInteractionRPCStub()
@@ -469,13 +497,19 @@ private func observe(
     rpc: PendingInteractionRPCStub
 ) async throws -> RelayPendingInteraction {
     try await broker.start()
+    let existingIDs = Set(await broker.interactions().map(\.id))
     await rpc.emit(.serverRequest(request))
-    let expectedID = interactionID(for: request)
     for _ in 0..<200
-    where await broker.interaction(id: expectedID) == nil {
+    where await broker.interactions().allSatisfy({
+        existingIDs.contains($0.id)
+    }) {
         await Task.yield()
     }
-    return try #require(await broker.interaction(id: expectedID))
+    return try #require(
+        await broker.interactions().first {
+            !existingIDs.contains($0.id)
+        }
+    )
 }
 
 private func questionRequest(
@@ -483,8 +517,20 @@ private func questionRequest(
     threadID: String,
     itemID: String = "item"
 ) -> CodexServerRequest {
+    questionRequest(
+        requestID: .string(requestID),
+        threadID: threadID,
+        itemID: itemID
+    )
+}
+
+private func questionRequest(
+    requestID: JSONRPCRequestID,
+    threadID: String,
+    itemID: String = "item"
+) -> CodexServerRequest {
     CodexServerRequest(
-        id: .string(requestID),
+        id: requestID,
         method: "item/tool/requestUserInput",
         params: .object([
             "threadId": .string(threadID),
@@ -499,18 +545,6 @@ private func questionRequest(
             ]),
         ])
     )
-}
-
-private func interactionID(for request: CodexServerRequest) -> String {
-    let threadID = request.params?["threadId"]?.stringValue
-        ?? request.params?["conversationId"]?.stringValue
-        ?? ""
-    let itemID = request.params?["itemId"]?.stringValue ?? ""
-    let requestID = switch request.id {
-    case let .string(value): value
-    case let .integer(value): String(value)
-    }
-    return "\(threadID):\(itemID):\(requestID)"
 }
 
 private func waitForResponseCount(
