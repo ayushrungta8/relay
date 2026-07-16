@@ -8,6 +8,7 @@ import RelayVoice
 final class RelayAppRuntime {
     let commandHandler: any RelayCommandHandling
     let pushToTalk: PushToTalkCoordinator
+    let activityStore: RelayActivityStore
 
     private let shortcutMonitor: any RelayGlobalShortcutMonitoring
 
@@ -20,6 +21,14 @@ final class RelayAppRuntime {
         let rpc = PersistentCodexAppServerClient()
         let controllerThreadStore = RelayControllerThreadFileStore()
         let taskClient = CodexTaskOperationsClient(rpc: rpc)
+        let monitoringClient = CodexMonitoringClient(client: rpc)
+        activityStore = RelayActivityStore(
+            monitoring: monitoringClient,
+            tasks: taskClient,
+            connect: {
+                try await rpc.start()
+            }
+        )
         let taskOperations = CodexRelayTaskOperationsAdapter(
             client: taskClient,
             controllerThreadStore: controllerThreadStore

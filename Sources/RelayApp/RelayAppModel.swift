@@ -16,17 +16,30 @@ final class RelayAppModel {
     }
 
     private let providerFactory:
-        @Sendable () -> any CodexThreadProviding
+        (@Sendable () -> any CodexThreadProviding)?
     private var commandHandler: (any RelayCommandHandling)?
     private var runtime: RelayAppRuntime?
     private var voiceAwaitingAnswer = false
 
-    private(set) var threads: [CodexThread] = []
+    private var loadedThreads: [CodexThread] = []
     private(set) var state: State = .idle
     private(set) var errorMessage: String?
     var commandText = ""
     private(set) var composerPhase: RelayComposerPhase = .idle
     private(set) var latestResponse: String?
+
+    var activityStore: RelayActivityStore? {
+        runtime?.activityStore
+    }
+
+    var threads: [CodexThread] {
+        guard let activityStore else { return loadedThreads }
+        return (
+            activityStore.attentionTasks
+                + activityStore.runningTasks
+                + activityStore.recentTasks
+        ).map(\.thread)
+    }
 
     var isVoiceActive: Bool {
         guard let runtime else { return false }
@@ -39,8 +52,8 @@ final class RelayAppModel {
     }
 
     init(
-        providerFactory: @escaping @Sendable
-            () -> any CodexThreadProviding = { CodexAppServerClient() },
+        providerFactory: (@Sendable
+            () -> any CodexThreadProviding)? = nil,
         commandHandler: (any RelayCommandHandling)? = nil
     ) {
         self.providerFactory = providerFactory
@@ -60,6 +73,7 @@ final class RelayAppModel {
         )
         self.runtime = runtime
         commandHandler = runtime.commandHandler
+        await runtime.activityStore.start()
 
         do {
             try runtime.startShortcut { [weak self] event in
@@ -76,9 +90,25 @@ final class RelayAppModel {
         state = .loading
         errorMessage = nil
 
+        if let activityStore {
+            await activityStore.refresh()
+            if activityStore.connectionState.isOffline {
+                state = .failed
+                errorMessage = activityStore.connectionState.errorMessage
+            } else {
+                state = .loaded
+            }
+            return
+        }
+
+        guard let providerFactory else {
+            state = .idle
+            return
+        }
+
         do {
             let provider = providerFactory()
-            threads = try await provider.loadThreads(limit: 25)
+            loadedThreads = try await provider.loadThreads(limit: 25)
                 .filter {
                     $0.name?
                         .trimmingCharacters(

@@ -57,6 +57,52 @@ struct PersistentCodexAppServerClientTests {
 
         await client.stop()
     }
+
+    @Test
+    func restartsTheSamePersistentClientAfterTransportFailure() async throws {
+        let transport = RestartablePersistentTransport()
+        let client = PersistentCodexAppServerClient(transport: transport)
+
+        try await client.start()
+        await transport.failCurrentConnection()
+
+        for await event in client.events {
+            guard case .lifecycle(.failed) = event else { continue }
+            break
+        }
+
+        try await client.start()
+
+        #expect(await transport.startCount() == 2)
+        #expect(await client.state == .ready)
+        await client.stop()
+    }
+
+    @Test
+    func startingAnAlreadyReadyPersistentClientIsIdempotent() async throws {
+        let transport = RestartablePersistentTransport()
+        let client = PersistentCodexAppServerClient(transport: transport)
+
+        try await client.start()
+        try await client.start()
+
+        #expect(await transport.startCount() == 1)
+        await client.stop()
+    }
+
+    @Test
+    func broadcastsServerEventsToEverySubscriber() async throws {
+        let transport = RestartablePersistentTransport()
+        let client = PersistentCodexAppServerClient(transport: transport)
+        var first = client.events.makeAsyncIterator()
+        var second = client.events.makeAsyncIterator()
+
+        try await client.start()
+
+        #expect(await first.next() == .lifecycle(.starting))
+        #expect(await second.next() == .lifecycle(.starting))
+        await client.stop()
+    }
 }
 
 private struct EmptyThreadListParams: Encodable, Sendable {
@@ -138,4 +184,61 @@ private actor PersistentScriptedTransport: CodexAppServerTransport {
         }
         pair.continuation.yield(data)
     }
+}
+
+private actor RestartablePersistentTransport: CodexAppServerTransport {
+    private var starts = 0
+    private var continuation:
+        AsyncThrowingStream<Data, any Error>.Continuation?
+
+    func start() async throws -> AsyncThrowingStream<Data, any Error> {
+        starts += 1
+        let pair = AsyncThrowingStream<Data, any Error>.makeStream(
+            bufferingPolicy: .unbounded
+        )
+        continuation = pair.continuation
+        return pair.stream
+    }
+
+    func send(_ message: Data) async throws {
+        let value = try JSONDecoder().decode(JSONValue.self, from: message)
+        guard let object = value.objectValue,
+              object["method"]?.stringValue == "initialize",
+              let id = object["id"] else {
+            return
+        }
+        emit(
+            .object([
+                "id": id,
+                "result": .object([
+                    "userAgent": .string("fixture"),
+                    "platformFamily": .string("unix"),
+                    "platformOs": .string("macos"),
+                    "codexHome": .string("/tmp/.codex"),
+                ]),
+            ])
+        )
+    }
+
+    func stop() async {
+        continuation?.finish()
+        continuation = nil
+    }
+
+    func failCurrentConnection() {
+        continuation?.finish(throwing: StoreTransportFailure.closed)
+    }
+
+    func startCount() -> Int {
+        starts
+    }
+
+    private func emit(_ value: JSONValue) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        continuation?.yield(data)
+    }
+}
+
+private enum StoreTransportFailure: Error {
+    case closed
 }

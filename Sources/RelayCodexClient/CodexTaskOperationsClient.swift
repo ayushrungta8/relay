@@ -43,7 +43,15 @@ extension CodexTaskOperationsError: LocalizedError {
     }
 }
 
-public actor CodexTaskOperationsClient {
+public protocol CodexTaskOperating: Sendable {
+    func sendToTask(
+        id: String,
+        prompt: String
+    ) async throws -> CodexTaskLaunch
+    func interruptTask(id: String) async throws
+}
+
+public actor CodexTaskOperationsClient: CodexTaskOperating {
     private let rpc: any CodexRPCRequesting
 
     public init(rpc: any CodexRPCRequesting) {

@@ -1,11 +1,12 @@
 import Foundation
 
 public actor PersistentCodexAppServerClient {
-    public nonisolated let events: AsyncStream<CodexServerEvent>
+    public nonisolated var events: AsyncStream<CodexServerEvent> {
+        eventBroadcaster.stream()
+    }
 
     private let transport: any CodexAppServerTransport
-    private let eventContinuation:
-        AsyncStream<CodexServerEvent>.Continuation
+    private nonisolated let eventBroadcaster = CodexServerEventBroadcaster()
     private var receiveTask: Task<Void, Never>?
     private var pending: [
         JSONRPCRequestID:
@@ -16,20 +17,10 @@ public actor PersistentCodexAppServerClient {
     public private(set) var state: PersistentCodexClientState = .idle
 
     public init(transport: any CodexAppServerTransport) {
-        let pair = AsyncStream<CodexServerEvent>.makeStream(
-            bufferingPolicy: .unbounded
-        )
-        events = pair.stream
-        eventContinuation = pair.continuation
         self.transport = transport
     }
 
     public init(executableURL: URL? = nil) {
-        let pair = AsyncStream<CodexServerEvent>.makeStream(
-            bufferingPolicy: .unbounded
-        )
-        events = pair.stream
-        eventContinuation = pair.continuation
         transport = StdioCodexAppServerTransport(
             executableURL: executableURL
         )
@@ -37,13 +28,18 @@ public actor PersistentCodexAppServerClient {
 
     deinit {
         receiveTask?.cancel()
-        eventContinuation.finish()
+        eventBroadcaster.finish()
     }
 
     public func start() async throws {
-        guard state == .idle else {
+        switch state {
+        case .idle, .failed:
+            break
+        case .ready:
+            return
+        default:
             throw CodexClientError.invalidState(
-                "The persistent Codex client can only be started once."
+                "The persistent Codex client is already running or stopped."
             )
         }
 
@@ -106,7 +102,7 @@ public actor PersistentCodexAppServerClient {
         failAllPending(with: CodexClientError.transportClosed)
         await transport.stop()
         setState(.stopped)
-        eventContinuation.finish()
+        eventBroadcaster.finish()
     }
 
     public func request<Parameters, Result>(
@@ -251,7 +247,7 @@ public actor PersistentCodexAppServerClient {
 
     private func setState(_ newState: PersistentCodexClientState) {
         state = newState
-        eventContinuation.yield(.lifecycle(newState))
+        eventBroadcaster.yield(.lifecycle(newState))
     }
 
     private func sendObject(_ object: [String: JSONValue]) async throws {
@@ -264,7 +260,7 @@ public actor PersistentCodexAppServerClient {
         do {
             value = try JSONDecoder().decode(JSONValue.self, from: frame)
         } catch {
-            eventContinuation.yield(
+            eventBroadcaster.yield(
                 .protocolIssue(
                     "Invalid JSON frame: \(error.localizedDescription)"
                 )
@@ -273,7 +269,7 @@ public actor PersistentCodexAppServerClient {
         }
 
         guard let object = value.objectValue else {
-            eventContinuation.yield(
+            eventBroadcaster.yield(
                 .protocolIssue("Top-level JSON-RPC message is not an object.")
             )
             return
@@ -282,7 +278,7 @@ public actor PersistentCodexAppServerClient {
         if let idValue = object["id"],
            let id = JSONRPCRequestID(jsonValue: idValue) {
             if let method = object["method"]?.stringValue {
-                eventContinuation.yield(
+                eventBroadcaster.yield(
                     .serverRequest(
                         CodexServerRequest(
                             id: id,
@@ -298,7 +294,7 @@ public actor PersistentCodexAppServerClient {
         }
 
         guard let method = object["method"]?.stringValue else {
-            eventContinuation.yield(
+            eventBroadcaster.yield(
                 .protocolIssue(
                     "Message contains neither a request id nor a method."
                 )
@@ -306,7 +302,7 @@ public actor PersistentCodexAppServerClient {
             return
         }
 
-        eventContinuation.yield(
+        eventBroadcaster.yield(
             .notification(method: method, params: object["params"])
         )
     }
@@ -316,7 +312,7 @@ public actor PersistentCodexAppServerClient {
         object: [String: JSONValue]
     ) {
         guard let continuation = pending.removeValue(forKey: id) else {
-            eventContinuation.yield(
+            eventBroadcaster.yield(
                 .protocolIssue("Response received for an unknown request.")
             )
             return
@@ -341,7 +337,7 @@ public actor PersistentCodexAppServerClient {
         }
     }
 
-    private func transportEnded(error: (any Error)?) {
+    private func transportEnded(error: (any Error)?) async {
         switch state {
         case .stopped, .stopping:
             return
@@ -351,9 +347,9 @@ public actor PersistentCodexAppServerClient {
 
         let actualError = error ?? CodexClientError.transportClosed
         failAllPending(with: actualError)
-        setState(.failed(actualError.localizedDescription))
-        eventContinuation.finish()
         receiveTask = nil
+        await transport.stop()
+        setState(.failed(actualError.localizedDescription))
     }
 
     private func failAllPending(with error: any Error) {
