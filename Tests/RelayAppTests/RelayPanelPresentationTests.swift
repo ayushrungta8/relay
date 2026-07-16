@@ -91,6 +91,35 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func swiftUIRequestsPresentationWithoutMutatingPanelStateDirectly() {
+        let state = RelayNotchPanelState()
+        state.presentation = .compact
+        var requestedPresentation: RelayPanelPresentation?
+        state.presentationRequestHandler = { presentation in
+            requestedPresentation = presentation
+        }
+
+        state.requestPresentation(.expanded)
+
+        #expect(state.presentation == .compact)
+        #expect(requestedPresentation == .expanded)
+    }
+
+    @Test
+    func swiftUIReportsMeasuredHeightThroughThePanelBoundary() {
+        let state = RelayNotchPanelState()
+        var request: (RelayPanelPresentation, Double)?
+        state.contentHeightRequestHandler = { presentation, height in
+            request = (presentation, height)
+        }
+
+        state.requestContentHeight(248, for: .expanded)
+
+        #expect(request?.0 == .expanded)
+        #expect(request?.1 == 248)
+    }
+
+    @Test
     func reduceMotionSelectsCrossfadeInsteadOfAnchoredResize() {
         #expect(
             RelayPanelPresentation.expanded.transition(reduceMotion: true)

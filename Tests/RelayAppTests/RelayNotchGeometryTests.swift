@@ -61,6 +61,34 @@ struct RelayNotchGeometryTests {
     }
 
     @Test
+    func measuredContentHeightDrivesThePanelAndStillClampsToTheDisplay() {
+        let screen = CGRect(x: 0, y: 0, width: 1_440, height: 900)
+        let visible = CGRect(x: 0, y: 0, width: 1_440, height: 875)
+
+        let compact = RelayNotchGeometry.frame(
+            for: .compact,
+            contentHeight: 132,
+            screenFrame: screen,
+            visibleFrame: visible,
+            safeAreaInsets: .init(),
+            leftAuxiliaryArea: nil,
+            rightAuxiliaryArea: nil
+        )
+        let oversized = RelayNotchGeometry.frame(
+            for: .expanded,
+            contentHeight: 2_000,
+            screenFrame: screen,
+            visibleFrame: visible,
+            safeAreaInsets: .init(),
+            leftAuxiliaryArea: nil,
+            rightAuxiliaryArea: nil
+        )
+
+        #expect(compact.height == 132)
+        #expect(oversized.height == visible.height * 0.7)
+    }
+
+    @Test
     func externalDisplayFrameClampsToItsOffsetVisibleArea() {
         let screen = CGRect(x: -1_280, y: 120, width: 1_280, height: 720)
         let visible = CGRect(

@@ -11,6 +11,9 @@ final class RelayNotchPanelController {
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
     private var currentScreen: NSScreen?
+    private var peekContentHeight: Double?
+    private var compactContentHeight: Double?
+    private var expandedContentHeight: Double?
 
     var presentation: RelayPanelPresentation {
         presentationState.presentation
@@ -32,6 +35,14 @@ final class RelayNotchPanelController {
         interactivePanel = RelayNotchPanel(
             initialPresentation: .compact
         )
+        presentationState.presentationRequestHandler = { [weak self] value in
+            guard let self else { return }
+            self.present(value, on: currentScreen)
+        }
+        presentationState.contentHeightRequestHandler = {
+            [weak self] presentation, height in
+            self?.updateContentHeight(height, for: presentation)
+        }
         configurePanel(nonactivatingPanel)
         configurePanel(interactivePanel)
         nonactivatingPanel.contentView = hostingView
@@ -55,12 +66,21 @@ final class RelayNotchPanelController {
         }
         attachHost(to: panel)
         activePanel = panel
+        presentationState.topInset = if
+            targetScreen.auxiliaryTopLeftArea != nil,
+            targetScreen.auxiliaryTopRightArea != nil
+        {
+            targetScreen.safeAreaInsets.top
+        } else {
+            0
+        }
         presentationState.presentation = presentation
         currentScreen = targetScreen
         panel.updatePresentation(presentation)
 
         let frame = RelayNotchGeometry.frame(
             for: presentation,
+            contentHeight: contentHeight(for: presentation),
             screenFrame: targetScreen.frame,
             visibleFrame: targetScreen.visibleFrame,
             safeAreaInsets: targetScreen.safeAreaInsets,
@@ -190,6 +210,47 @@ final class RelayNotchPanelController {
             width: 0,
             height: 0
         )
+    }
+
+    private func contentHeight(
+        for presentation: RelayPanelPresentation
+    ) -> Double? {
+        switch presentation {
+        case .hidden:
+            nil
+        case .peek:
+            peekContentHeight
+        case .compact:
+            compactContentHeight
+        case .expanded:
+            expandedContentHeight
+        }
+    }
+
+    private func updateContentHeight(
+        _ height: Double,
+        for presentation: RelayPanelPresentation
+    ) {
+        guard height.isFinite, height > 0 else { return }
+        let height = ceil(height)
+        let previous = contentHeight(for: presentation)
+        guard previous == nil || abs((previous ?? 0) - height) >= 1 else {
+            return
+        }
+        switch presentation {
+        case .hidden:
+            return
+        case .peek:
+            peekContentHeight = height
+        case .compact:
+            compactContentHeight = height
+        case .expanded:
+            expandedContentHeight = height
+        }
+        guard presentationState.presentation == presentation else {
+            return
+        }
+        present(presentation, on: currentScreen)
     }
 
     private func collapseOneLevel() {

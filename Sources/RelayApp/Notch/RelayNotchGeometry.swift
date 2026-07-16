@@ -3,6 +3,7 @@ import AppKit
 enum RelayNotchGeometry {
     static func frame(
         for presentation: RelayPanelPresentation,
+        contentHeight: Double? = nil,
         screenFrame: CGRect,
         visibleFrame: CGRect,
         safeAreaInsets: NSEdgeInsets,
@@ -38,7 +39,8 @@ enum RelayNotchGeometry {
         let height = min(
             targetHeight(
                 for: presentation,
-                topInset: hasNotch ? safeAreaInsets.top : 0
+                topInset: hasNotch ? safeAreaInsets.top : 0,
+                contentHeight: contentHeight
             ),
             maximumHeight
         )
@@ -92,9 +94,16 @@ enum RelayNotchGeometry {
 
     private static func targetHeight(
         for presentation: RelayPanelPresentation,
-        topInset: Double
+        topInset: Double,
+        contentHeight: Double?
     ) -> Double {
-        switch presentation {
+        if let contentHeight,
+           contentHeight.isFinite,
+           contentHeight > 0
+        {
+            return topInset + contentHeight
+        }
+        return switch presentation {
         case .hidden:
             0
         case .peek:

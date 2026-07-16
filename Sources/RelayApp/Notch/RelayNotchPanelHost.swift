@@ -1,3 +1,5 @@
+import AppKit
+import RelayCore
 import SwiftUI
 
 struct RelayNotchPanelHost: View {
@@ -5,34 +7,96 @@ struct RelayNotchPanelHost: View {
     let state: RelayNotchPanelState
 
     var body: some View {
-        ZStack {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 2,
-                bottomLeadingRadius: 16,
-                bottomTrailingRadius: 16,
-                topTrailingRadius: 2
-            )
-            .fill(.black)
+        @Bindable var model = model
 
-            Label("Relay", systemImage: "arrow.left.arrow.right")
-                .font(.headline)
-                .foregroundStyle(.white)
-                .opacity(state.presentation == .hidden ? 0 : 1)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
+        RelayNotchRootView(
+            presentation: state.presentation,
+            activity: activityPresentation,
+            capacity: capacityPresentation,
+            tokenUsageByThreadID:
+                model.activityStore?.tokenUsageByThreadID ?? [:],
+            actions: taskActions,
+            commandText: $model.commandText,
+            composerPhase: model.composerPhase,
+            topInset: state.topInset,
+            submitCommand: submitCommand,
+            requestPresentation: state.requestPresentation,
+            reportContentHeight: { presentation, height in
+                state.requestContentHeight(height, for: presentation)
+            }
+        )
     }
 
-    private var accessibilityLabel: String {
-        switch state.presentation {
-        case .hidden:
-            "Relay hidden"
-        case .peek:
-            "Relay status"
-        case .compact:
-            "Relay activity center"
-        case .expanded:
-            "Relay expanded activity center"
+    private var activityPresentation: RelayActivityPresentation {
+        if let store = model.activityStore {
+            return RelayActivityPresentation(
+                attentionTasks: store.attentionTasks,
+                runningTasks: store.runningTasks,
+                recentTasks: store.recentTasks
+            )
+        }
+        return RelayActivityPresentation(
+            tasks: model.threads.map { RelayTaskActivity(thread: $0) }
+        )
+    }
+
+    private var capacityPresentation: RelayCapacityPresentation {
+        RelayCapacityPresentation(snapshot: model.activityStore?.usage)
+    }
+
+    private var taskActions: RelayTaskActions {
+        RelayTaskActions(
+            open: open,
+            markRead: markRead,
+            send: send,
+            interrupt: interrupt
+        )
+    }
+
+    private func submitCommand() {
+        Task {
+            await model.submitCommand()
+        }
+    }
+
+    private func open(_ task: RelayTaskActivity) async throws {
+        let action = RelayTaskOpenAction(
+            openURL: NSWorkspace.shared.open,
+            markRead: { threadID in
+                await model.activityStore?.markRead(threadID: threadID)
+            }
+        )
+        try await action(task)
+    }
+
+    private func markRead(_ task: RelayTaskActivity) async {
+        await model.activityStore?.markRead(threadID: task.id)
+    }
+
+    private func send(
+        _ task: RelayTaskActivity,
+        prompt: String
+    ) async throws {
+        guard let store = model.activityStore else {
+            throw ActionError.activityUnavailable
+        }
+        try await store.send(threadID: task.id, prompt: prompt)
+    }
+
+    private func interrupt(_ task: RelayTaskActivity) async throws {
+        guard let store = model.activityStore else {
+            throw ActionError.activityUnavailable
+        }
+        try await store.interrupt(threadID: task.id)
+    }
+}
+
+private extension RelayNotchPanelHost {
+    enum ActionError: LocalizedError {
+        case activityUnavailable
+
+        var errorDescription: String? {
+            "Codex task actions are unavailable."
         }
     }
 }
