@@ -75,23 +75,27 @@ private extension RelayCapacityStrip {
             HStack(spacing: 5) {
                 Image(systemName: levelSymbol)
                     .foregroundStyle(levelColor)
-                    .accessibilityLabel(levelLabel)
+                    .accessibilityHidden(true)
 
-                Text(window.label)
-                    .foregroundStyle(RelayPalette.secondaryText)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(window.label)
+                        .foregroundStyle(RelayPalette.secondaryText)
+                        .lineLimit(1)
 
-                Text(window.usedPercent, format: .number)
+                    Text(window.level.label)
+                        .foregroundStyle(RelayPalette.primaryText)
+                        .lineLimit(1)
+                }
+                .font(.caption)
+
+                Text("\(window.usedPercent)%")
+                    .font(.callout)
                     .monospacedDigit()
                     .foregroundStyle(RelayPalette.primaryText)
-                Text("%")
-                    .foregroundStyle(RelayPalette.tertiaryText)
-                    .accessibilityHidden(true)
             }
-            .font(.caption)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
-                "\(window.label), \(window.usedPercent) percent used, \(levelLabel)"
+                "\(window.label), \(window.usedPercent) percent used, \(window.level.label)"
             )
         }
 
@@ -117,15 +121,5 @@ private extension RelayCapacityStrip {
             }
         }
 
-        private var levelLabel: String {
-            switch window.level {
-            case .standard:
-                "Capacity available"
-            case .warning:
-                "Capacity warning"
-            case .critical:
-                "Capacity critical"
-            }
-        }
     }
 }

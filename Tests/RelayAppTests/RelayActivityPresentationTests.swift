@@ -1,5 +1,6 @@
 import Foundation
 import RelayCore
+import SwiftUI
 import Testing
 @testable import RelayApp
 
@@ -191,6 +192,17 @@ struct RelayActivityPresentationTests {
     }
 
     @Test
+    func capacityLevelsHaveVisiblePlainLanguageLabels() {
+        let levels: [RelayCapacityPresentation.Level] = [
+            .standard,
+            .warning,
+            .critical,
+        ]
+
+        #expect(levels.map(\.label) == ["Normal", "Warning", "Critical"])
+    }
+
+    @Test
     func everyTaskStateHasAPlainLabelAndDistinctSymbol() {
         let states: [RelayTaskAttentionState] = [
             .needsInput,
@@ -210,6 +222,11 @@ struct RelayActivityPresentationTests {
             "Running",
             "Idle",
         ])
+
+        let ready = RelayStatusSymbol(state: .ready)
+        #expect(ready.iconColor == RelayPalette.ready)
+        #expect(ready.labelColor == RelayPalette.primaryText)
+        #expect(ready.iconColor != ready.labelColor)
     }
 
     private func activity(

@@ -84,20 +84,31 @@ private extension RelayUsageDetailView {
         var body: some View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    Text(window.label)
-                        .font(.callout)
-                        .bold()
-                        .foregroundStyle(RelayPalette.primaryText)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(window.label)
+                            .font(.callout)
+                            .bold()
+                            .foregroundStyle(RelayPalette.primaryText)
+
+                        HStack(spacing: 5) {
+                            Image(systemName: levelSymbol)
+                                .foregroundStyle(levelColor)
+                                .accessibilityHidden(true)
+
+                            Text(window.level.label)
+                                .foregroundStyle(
+                                    RelayPalette.secondaryText
+                                )
+                        }
+                        .font(.caption)
+                    }
 
                     Spacer()
 
-                    Text(window.usedPercent, format: .number)
+                    Text("\(window.usedPercent)%")
                         .font(.callout)
                         .monospacedDigit()
-                        .foregroundStyle(levelColor)
-                    Text("% used")
-                        .font(.caption)
-                        .foregroundStyle(RelayPalette.secondaryText)
+                        .foregroundStyle(RelayPalette.primaryText)
                 }
 
                 ProgressView(value: window.progress)
@@ -105,7 +116,7 @@ private extension RelayUsageDetailView {
                     .tint(levelColor)
                     .accessibilityLabel(window.label)
                     .accessibilityValue(
-                        "\(window.usedPercent) percent used, \(levelLabel)"
+                        "\(window.usedPercent) percent used, \(window.level.label)"
                     )
 
                 if let resetDate = window.resetDate {
@@ -138,14 +149,14 @@ private extension RelayUsageDetailView {
             }
         }
 
-        private var levelLabel: String {
+        private var levelSymbol: String {
             switch window.level {
             case .standard:
-                "capacity available"
+                "circle.fill"
             case .warning:
-                "capacity warning"
+                "exclamationmark.triangle.fill"
             case .critical:
-                "capacity critical"
+                "exclamationmark.octagon.fill"
             }
         }
     }

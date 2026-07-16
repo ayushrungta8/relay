@@ -7,6 +7,17 @@ struct RelayCapacityPresentation {
         case warning
         case critical
 
+        var label: String {
+            switch self {
+            case .standard:
+                "Normal"
+            case .warning:
+                "Warning"
+            case .critical:
+                "Critical"
+            }
+        }
+
         init(usedPercent: Int) {
             if usedPercent >= 90 {
                 self = .critical

@@ -35,12 +35,17 @@ struct RelayStatusSymbol: View {
     }
 
     var body: some View {
-        Label(label, systemImage: systemName)
-            .foregroundStyle(color)
+        Label {
+            Text(label)
+                .foregroundStyle(labelColor)
+        } icon: {
+            Image(systemName: systemName)
+                .foregroundStyle(iconColor)
+        }
             .accessibilityLabel(label)
     }
 
-    private var color: Color {
+    var iconColor: Color {
         switch state {
         case .needsInput:
             RelayPalette.needsInput
@@ -53,5 +58,9 @@ struct RelayStatusSymbol: View {
         case .idle:
             RelayPalette.idle
         }
+    }
+
+    var labelColor: Color {
+        RelayPalette.primaryText
     }
 }
