@@ -223,6 +223,26 @@ struct CodexRateLimitSnapshot: Decodable {
     }
 }
 
+public enum CodexResetCreditConsumeOutcome: Sendable, Equatable {
+    case redeemed
+    case noCredit
+    case alreadyRedeemed
+    case unrecognized(String)
+
+    init(rawOutcome: String) {
+        switch rawOutcome {
+        case "redeemed": self = .redeemed
+        case "noCredit": self = .noCredit
+        case "alreadyRedeemed": self = .alreadyRedeemed
+        default: self = .unrecognized(rawOutcome)
+        }
+    }
+}
+
+struct CodexResetCreditConsumeResult: Decodable {
+    let outcome: String
+}
+
 struct CodexResetCreditSummary: Decodable {
     let availableCount: Int64
     let credits: [RelayRateLimitResetCredit]?

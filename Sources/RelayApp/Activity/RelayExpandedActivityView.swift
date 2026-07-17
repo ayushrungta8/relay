@@ -8,6 +8,8 @@ struct RelayExpandedActivityView: View {
     let pendingInteractions: [RelayPendingInteraction]
     let drafts: RelayPanelDraftStore
     let actions: RelayTaskActions
+    let usageActions: RelayUsageActions
+    let autoApplyResetCredits: Bool
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
     let chatMessages: [RelayChatMessage]
@@ -47,16 +49,23 @@ struct RelayExpandedActivityView: View {
             case .chat:
                 RelayChatView(messages: chatMessages)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                Divider().overlay(RelayPalette.hairline)
+
+                RelayCommandComposerView(
+                    text: $commandText,
+                    phase: composerPhase,
+                    submit: submitCommand
+                )
+                .frame(height: 50)
+            case .usage:
+                RelayUsageSectionView(
+                    capacity: capacity,
+                    autoApplyResetCredits: autoApplyResetCredits,
+                    actions: usageActions
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            Divider().overlay(RelayPalette.hairline)
-
-            RelayCommandComposerView(
-                text: $commandText,
-                phase: composerPhase,
-                submit: submitCommand
-            )
-            .frame(height: 50)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: orderedTaskIDs, initial: true) { _, _ in
@@ -91,7 +100,10 @@ struct RelayExpandedActivityView: View {
 
             Divider().overlay(RelayPalette.hairline)
 
-            RelayCapacityFooter(presentation: capacity)
+            RelayCapacityFooter(
+                presentation: capacity,
+                openUsage: { selectedSection = .usage }
+            )
         }
     }
 

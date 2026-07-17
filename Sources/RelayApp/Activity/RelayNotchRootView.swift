@@ -9,6 +9,8 @@ struct RelayNotchRootView: View {
     let pendingInteractions: [RelayPendingInteraction]
     let drafts: RelayPanelDraftStore
     let actions: RelayTaskActions
+    let usageActions: RelayUsageActions
+    let autoApplyResetCredits: Bool
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
     let chatMessages: [RelayChatMessage]
@@ -60,6 +62,8 @@ struct RelayNotchRootView: View {
                         pendingInteractions: pendingInteractions,
                         drafts: drafts,
                         actions: actions,
+                        usageActions: usageActions,
+                        autoApplyResetCredits: autoApplyResetCredits,
                         commandText: $commandText,
                         composerPhase: composerPhase,
                         chatMessages: chatMessages,

@@ -8,6 +8,9 @@ import RelayCore
 nonisolated protocol RelayActivityMonitoring: Sendable {
     nonisolated func events() -> AsyncStream<RelayMonitoringEvent>
     func snapshot(limit: Int) async throws -> RelayMonitoringSnapshot
+    func consumeResetCredit(
+        creditID: String?
+    ) async throws -> CodexResetCreditConsumeOutcome
 }
 
 extension CodexMonitoringClient: RelayActivityMonitoring {}
@@ -26,7 +29,14 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private let sleep: Sleep
     private let state = RelayActivityState()
 
+    private let defaults: UserDefaults
+    private static let autoApplyDefaultsKey =
+        "relay.autoApplyResetCreditBeforeExpiry"
+    static let autoApplyLeadTime: TimeInterval = 3_600
+
     private var eventTask: Task<Void, Never>?
+    private var autoApplyTask: Task<Void, Never>?
+    private var autoApplyAttemptedCreditIDs: Set<String> = []
     private var periodicRefreshTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     private var isStarted = false
@@ -47,6 +57,17 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private(set) var selectedThreadID: String?
     private(set) var lastUpdatedAt: Date?
 
+    var autoApplyResetCredits: Bool {
+        didSet {
+            guard autoApplyResetCredits != oldValue else { return }
+            defaults.set(
+                autoApplyResetCredits,
+                forKey: Self.autoApplyDefaultsKey
+            )
+            scheduleAutoApply()
+        }
+    }
+
     init(
         monitoring: any RelayActivityMonitoring,
         tasks: any CodexTaskOperating,
@@ -55,13 +76,18 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         connect: @escaping Connect,
         sleep: @escaping Sleep = { duration in
             try await Task.sleep(for: duration)
-        }
+        },
+        defaults: UserDefaults = .standard
     ) {
         self.monitoring = monitoring
         self.tasks = tasks
         self.controllerThreadStore = controllerThreadStore
         self.connect = connect
         self.sleep = sleep
+        self.defaults = defaults
+        autoApplyResetCredits = defaults.bool(
+            forKey: Self.autoApplyDefaultsKey
+        )
     }
 
     func start() async {
@@ -141,6 +167,14 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         publish(await state.markRead(threadID: threadID))
         _ = try await tasks.sendToTask(id: threadID, prompt: prompt)
         await refresh()
+    }
+
+    func applyResetCredit(
+        id: String
+    ) async throws -> CodexResetCreditConsumeOutcome {
+        let outcome = try await monitoring.consumeResetCredit(creditID: id)
+        await refresh()
+        return outcome
     }
 
     func interrupt(threadID: String) async throws {
@@ -295,6 +329,47 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         lastSelectedThreadID = values.lastSelectedThreadID
         selectedThreadID = values.selectedThreadID
         activityPublished?()
+        scheduleAutoApply()
+    }
+
+    private func scheduleAutoApply() {
+        autoApplyTask?.cancel()
+        autoApplyTask = nil
+        guard autoApplyResetCredits,
+              let credit = nextAutoApplyCandidate(),
+              let expiresAt = credit.expiresAt else { return }
+        let fireAt = Date(
+            timeIntervalSince1970: TimeInterval(expiresAt)
+        ).addingTimeInterval(-Self.autoApplyLeadTime)
+        let delay = fireAt.timeIntervalSinceNow
+        let creditID = credit.id
+        autoApplyTask = Task { [weak self, sleep] in
+            if delay > 0 {
+                try? await sleep(.seconds(delay))
+            }
+            guard let self, !Task.isCancelled else { return }
+            await self.performAutoApply(creditID: creditID)
+        }
+    }
+
+    private func nextAutoApplyCandidate() -> RelayRateLimitResetCredit? {
+        let now = Date().timeIntervalSince1970
+        return usage?.resetCredits?
+            .filter { credit in
+                credit.status == "available"
+                    && !autoApplyAttemptedCreditIDs.contains(credit.id)
+                    && credit.expiresAt.map {
+                        TimeInterval($0) > now
+                    } == true
+            }
+            .min { ($0.expiresAt ?? .max) < ($1.expiresAt ?? .max) }
+    }
+
+    private func performAutoApply(creditID: String) async {
+        guard autoApplyResetCredits else { return }
+        autoApplyAttemptedCreditIDs.insert(creditID)
+        _ = try? await monitoring.consumeResetCredit(creditID: creditID)
+        await refresh()
     }
 
     private static func title(for task: RelayTaskActivity) -> String {
@@ -350,5 +425,6 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         eventTask?.cancel()
         periodicRefreshTask?.cancel()
         reconnectTask?.cancel()
+        autoApplyTask?.cancel()
     }
 }
