@@ -4,4 +4,12 @@ enum RelayExpandedSection: String, CaseIterable, Identifiable {
     case usage = "Usage"
 
     var id: Self { self }
+
+    static func selection(
+        preserving current: Self,
+        previousChatMessageCount: Int,
+        chatMessageCount: Int
+    ) -> Self {
+        chatMessageCount > previousChatMessageCount ? .chat : current
+    }
 }

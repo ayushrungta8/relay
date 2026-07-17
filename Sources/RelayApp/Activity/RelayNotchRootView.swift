@@ -28,6 +28,7 @@ struct RelayNotchRootView: View {
     let priorityActivityChanged: (RelayAutomaticPeekTrigger?) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedSection = RelayExpandedSection.activity
 
     var body: some View {
         ZStack {
@@ -66,6 +67,7 @@ struct RelayNotchRootView: View {
                         actions: actions,
                         usageActions: usageActions,
                         autoApplyResetCredits: autoApplyResetCredits,
+                        selectedSection: $selectedSection,
                         commandText: $commandText,
                         composerPhase: composerPhase,
                         chatMessages: chatMessages,
@@ -95,6 +97,13 @@ struct RelayNotchRootView: View {
         .onChange(of: activity.automaticPeekTrigger, initial: true) {
             _, trigger in
             priorityActivityChanged(trigger)
+        }
+        .onChange(of: chatMessages.count) { previousCount, count in
+            selectedSection = RelayExpandedSection.selection(
+                preserving: selectedSection,
+                previousChatMessageCount: previousCount,
+                chatMessageCount: count
+            )
         }
         .onChange(of: draftOwners, initial: true) { _, owners in
             drafts.reconcile(

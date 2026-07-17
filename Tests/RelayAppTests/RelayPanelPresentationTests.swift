@@ -205,6 +205,7 @@ struct RelayPanelPresentationTests {
                 setAutoApplyResetCredits: { _ in }
             ),
             autoApplyResetCredits: false,
+            selectedSection: .constant(.activity),
             commandText: .constant(""),
             composerPhase: .idle,
             chatMessages: [],
@@ -221,6 +222,28 @@ struct RelayPanelPresentationTests {
         )
 
         _ = view
+    }
+
+    @Test
+    func expandedSectionPreservesUserSelectionWithoutANewChatMessage() {
+        let selection = RelayExpandedSection.selection(
+            preserving: .activity,
+            previousChatMessageCount: 2,
+            chatMessageCount: 2
+        )
+
+        #expect(selection == .activity)
+    }
+
+    @Test
+    func expandedSectionOpensChatWhenANewMessageArrives() {
+        let selection = RelayExpandedSection.selection(
+            preserving: .usage,
+            previousChatMessageCount: 2,
+            chatMessageCount: 3
+        )
+
+        #expect(selection == .chat)
     }
 
     @Test

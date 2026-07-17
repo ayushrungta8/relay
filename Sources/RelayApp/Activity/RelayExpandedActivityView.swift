@@ -10,6 +10,7 @@ struct RelayExpandedActivityView: View {
     let actions: RelayTaskActions
     let usageActions: RelayUsageActions
     let autoApplyResetCredits: Bool
+    @Binding var selectedSection: RelayExpandedSection
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
     let chatMessages: [RelayChatMessage]
@@ -25,7 +26,6 @@ struct RelayExpandedActivityView: View {
 
     @State private var selectedTaskID: String?
     @State private var operationState = RelayTaskOperationState()
-    @State private var selectedSection = RelayExpandedSection.activity
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,11 +73,6 @@ struct RelayExpandedActivityView: View {
                 preferredID: selectedTaskID,
                 orderedTasks: activity.orderedTasks
             )
-        }
-        .onChange(of: chatMessages.count, initial: true) { _, count in
-            if count > 0 {
-                selectedSection = .chat
-            }
         }
     }
 

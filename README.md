@@ -43,7 +43,7 @@ Relay lives beneath the camera housing as a compact, always-available status sur
 
 Relay requires **macOS 15 or later** and a local, authenticated Codex installation. It can use Codex from the Codex or ChatGPT desktop app, Homebrew, or your `PATH`.
 
-1. Download the latest `Relay-1.0.0-macos-universal.dmg` from [GitHub Releases](https://github.com/ayushrungta8/relay/releases/latest).
+1. Download the latest `Relay-1.0.1-macos-universal.dmg` from [GitHub Releases](https://github.com/ayushrungta8/relay/releases/latest).
 2. Open the DMG and drag **Relay** into **Applications**.
 3. Because this free build is not notarized by Apple, remove the download quarantine once:
 
@@ -55,7 +55,7 @@ open /Applications/Relay.app
 Only do this for a DMG downloaded from this repository. You can verify the download before installing:
 
 ```bash
-shasum -a 256 -c Relay-1.0.0-macos-universal.dmg.sha256
+shasum -a 256 -c Relay-1.0.1-macos-universal.dmg.sha256
 ```
 
 If you prefer not to use Terminal, try opening Relay once, then go to **System Settings → Privacy & Security → Open Anyway**.
