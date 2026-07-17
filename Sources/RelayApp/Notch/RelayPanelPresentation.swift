@@ -34,7 +34,7 @@ enum RelayPanelPresentation: Int, CaseIterable, Sendable {
     var toggled: Self {
         switch self {
         case .hidden, .peek:
-            .compact
+            .expanded
         case .compact, .expanded:
             .hidden
         }

@@ -22,12 +22,15 @@ struct RelayExpandedActivityView: View {
     let collapse: () -> Void
 
     @State private var selectedTaskID: String?
+    @FocusState private var detailRegionIsFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             RelayExpandedHeader(
                 summary: activity.expandedSummaryCopy,
                 safeArea: safeArea,
+                canOpenInCodex: selectedTask != nil,
+                openInCodex: openSelectedTaskInCodex,
                 collapse: collapse
             )
 
@@ -45,6 +48,8 @@ struct RelayExpandedActivityView: View {
 
                 detailColumn
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .focusable()
+                    .focused($detailRegionIsFocused)
             }
             .frame(height: 306)
 
@@ -72,6 +77,7 @@ struct RelayExpandedActivityView: View {
                 preferredID: selectedTaskID,
                 orderedTasks: activity.orderedTasks
             )
+            focusSelectedTaskRegion()
         }
     }
 
@@ -149,6 +155,20 @@ struct RelayExpandedActivityView: View {
 
     private func selectTask(_ task: RelayTaskActivity) {
         selectedTaskID = task.id
+        detailRegionIsFocused = true
         Task { await actions.select(task) }
+    }
+
+    private func openSelectedTaskInCodex() {
+        guard let selectedTask else { return }
+        Task { try? await actions.open(selectedTask) }
+    }
+
+    private func focusSelectedTaskRegion() {
+        guard selectedTaskID != nil else { return }
+        Task { @MainActor in
+            await Task.yield()
+            detailRegionIsFocused = true
+        }
     }
 }

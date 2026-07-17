@@ -220,9 +220,9 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
-    func toggleOpensCompactAndThenDismisses() {
-        #expect(RelayPanelPresentation.hidden.toggled == .compact)
-        #expect(RelayPanelPresentation.peek.toggled == .compact)
+    func directInvocationOpensExpandedAndThenDismisses() {
+        #expect(RelayPanelPresentation.hidden.toggled == .expanded)
+        #expect(RelayPanelPresentation.peek.toggled == .expanded)
         #expect(RelayPanelPresentation.compact.toggled == .hidden)
         #expect(RelayPanelPresentation.expanded.toggled == .hidden)
     }

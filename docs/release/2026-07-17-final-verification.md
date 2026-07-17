@@ -368,15 +368,25 @@ Computer Use attached to the real signed panel and verified:
 - the panel transitions from expanded to compact without changing its top
   anchor.
 
+The final whole-branch review then closed its remaining integration findings:
+
+- menu and Shift-Command-R invocation now open expanded Relay directly;
+- compact broad-notch sizing derives from the same clearance contract as the
+  SwiftUI center spacer and preserves minimum content space in both ears;
+- the expanded header includes a direct Open in Codex action for the selected
+  task;
+- initial keyboard focus lands in the selected-task region instead of the
+  composer.
+
 The temporary launch-only QA hook used to expose the hidden menu-bar panel was
 removed before the final build. The normal signed staged app is intentionally
 left running with exactly one direct Codex app-server child:
 
 ```text
 exact_app_count=1
-app_pid=63752
+app_pid=66805
 direct_app_server_count=1
-app_server_pid=63758
+app_server_pid=66821
 ```
 
 The exact staged application remains running.

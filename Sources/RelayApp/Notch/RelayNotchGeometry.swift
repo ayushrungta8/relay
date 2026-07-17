@@ -22,10 +22,19 @@ enum RelayNotchGeometry {
             )
         }
 
-        let width = min(
-            max(targetWidth(for: presentation), obstructionWidth),
-            visibleFrame.width
-        )
+        let requiredWidth = switch presentation {
+        case .peek, .compact:
+            max(
+                targetWidth(for: presentation),
+                RelayNotchSafeArea(
+                    topInset: 0,
+                    obstructionWidth: obstructionWidth
+                ).minimumCompactPanelWidth
+            )
+        case .hidden, .expanded:
+            targetWidth(for: presentation)
+        }
+        let width = min(requiredWidth, visibleFrame.width)
         let maximumHeight = min(
             visibleFrame.height * 0.7,
             topAnchor - visibleFrame.minY

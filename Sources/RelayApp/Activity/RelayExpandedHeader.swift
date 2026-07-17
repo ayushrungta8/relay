@@ -3,6 +3,8 @@ import SwiftUI
 struct RelayExpandedHeader: View {
     let summary: String
     let safeArea: RelayNotchSafeArea
+    let canOpenInCodex: Bool
+    let openInCodex: () -> Void
     let collapse: () -> Void
 
     var body: some View {
@@ -21,6 +23,17 @@ struct RelayExpandedHeader: View {
                     .font(.caption)
                     .foregroundStyle(RelayPalette.secondaryText)
                     .lineLimit(1)
+
+                Button(
+                    "Open in Codex",
+                    systemImage: "arrow.up.forward.app",
+                    action: openInCodex
+                )
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .foregroundStyle(RelayPalette.secondaryText)
+                .disabled(!canOpenInCodex)
+                .help("Open selected task in Codex")
 
                 Button(
                     "Collapse activity center",

@@ -42,6 +42,10 @@ struct RelayNotchGeometryTests {
 
     @Test
     func compactOverlayWidensForABroadCameraObstruction() {
+        let safeArea = RelayNotchSafeArea(
+            topInset: 38,
+            obstructionWidth: 480
+        )
         let frame = RelayNotchGeometry.frame(
             for: .compact,
             screenFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
@@ -61,7 +65,13 @@ struct RelayNotchGeometryTests {
             )
         )
 
-        #expect(frame.size == CGSize(width: 480, height: 42))
+        #expect(
+            frame.size == CGSize(
+                width: safeArea.minimumCompactPanelWidth,
+                height: 42
+            )
+        )
+        #expect(frame.width > safeArea.contentClearanceWidth)
     }
 
     @Test
