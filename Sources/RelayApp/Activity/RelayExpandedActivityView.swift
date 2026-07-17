@@ -22,6 +22,7 @@ struct RelayExpandedActivityView: View {
     let collapse: () -> Void
 
     @State private var selectedTaskID: String?
+    @State private var operationState = RelayTaskOperationState()
     @FocusState private var detailRegionIsFocused: Bool
 
     var body: some View {
@@ -108,6 +109,7 @@ struct RelayExpandedActivityView: View {
                         },
                         drafts: drafts,
                         actions: actions,
+                        operationState: $operationState,
                         submitPendingAnswers: submitPendingAnswers,
                         submitPendingDecision: submitPendingDecision
                     )
@@ -161,7 +163,18 @@ struct RelayExpandedActivityView: View {
 
     private func openSelectedTaskInCodex() {
         guard let selectedTask else { return }
-        Task { try? await actions.open(selectedTask) }
+        let taskID = selectedTask.id
+        operationState.recordError(nil, taskID: taskID)
+        Task {
+            do {
+                try await actions.open(selectedTask)
+            } catch {
+                operationState.recordError(
+                    error.localizedDescription,
+                    taskID: taskID
+                )
+            }
+        }
     }
 
     private func focusSelectedTaskRegion() {

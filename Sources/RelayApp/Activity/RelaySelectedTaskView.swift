@@ -7,14 +7,13 @@ struct RelaySelectedTaskView: View {
     let pendingInteractions: [RelayPendingInteraction]
     let drafts: RelayPanelDraftStore
     let actions: RelayTaskActions
+    @Binding var operationState: RelayTaskOperationState
     let submitPendingAnswers:
         (String, [String: [String]]) async throws -> Void
     let submitPendingDecision:
         (String, RelayPendingApprovalDecision) async throws -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var operationState = RelayTaskOperationState()
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
