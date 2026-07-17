@@ -13,8 +13,7 @@ struct RelaySelectedTaskView: View {
         (String, RelayPendingApprovalDecision) async throws -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isSending = false
-    @State private var errorMessage: String?
+    @State private var operationState = RelayTaskOperationState()
 
     var body: some View {
         ScrollView {
@@ -33,8 +32,6 @@ struct RelaySelectedTaskView: View {
         .animation(detailAnimation, value: task.id)
         .onChange(of: task.id, initial: true) { _, _ in
             synchronizeFollowUp()
-            errorMessage = nil
-            isSending = false
         }
         .onChange(of: allowsTaskManagement) { _, _ in
             synchronizeFollowUp()
@@ -93,6 +90,8 @@ struct RelaySelectedTaskView: View {
                 ProgressView(value: clampedContextProgress)
                     .progressViewStyle(.linear)
                     .tint(RelayPalette.accent)
+                    .id(reduceMotion ? contextPercentage : 0)
+                    .transition(.opacity)
                     .animation(contextAnimation, value: contextPercentage)
                     .accessibilityLabel("Latest turn context")
                     .accessibilityValue(
@@ -134,7 +133,7 @@ struct RelaySelectedTaskView: View {
             taskActions
         }
 
-        if let errorMessage {
+        if let errorMessage = operationState.error(taskID: task.id) {
             Label(errorMessage, systemImage: "exclamationmark.triangle")
                 .font(.caption)
                 .foregroundStyle(RelayPalette.failed)
@@ -181,7 +180,7 @@ struct RelaySelectedTaskView: View {
                     .textFieldStyle(.plain)
                     .lineLimit(1...2)
                     .onSubmit(sendFollowUp)
-                    .disabled(isSending)
+                    .disabled(operationState.isSending(taskID: task.id))
 
                     Button(
                         "Send follow-up",
@@ -267,8 +266,10 @@ struct RelaySelectedTaskView: View {
             : .easeOut(duration: 0.18)
     }
 
-    private var contextAnimation: Animation? {
-        reduceMotion ? nil : .easeInOut(duration: 0.24)
+    private var contextAnimation: Animation {
+        reduceMotion
+            ? .linear(duration: 0.12)
+            : .easeInOut(duration: 0.24)
     }
 
     private var followUp: RelayTaskCardFollowUpState {
@@ -284,7 +285,7 @@ struct RelaySelectedTaskView: View {
 
     private var canSend: Bool {
         !followUp.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !isSending
+            && !operationState.isSending(taskID: task.id)
     }
 
     private func synchronizeFollowUp() {
@@ -298,19 +299,22 @@ struct RelaySelectedTaskView: View {
         let prompt = followUp.draft.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        guard allowsTaskManagement, !prompt.isEmpty, !isSending else { return }
-        isSending = true
-        errorMessage = nil
+        let selectedTask = task
+        let taskID = selectedTask.id
+        let canManage = allowsTaskManagement
+        guard canManage, !prompt.isEmpty,
+              operationState.beginSending(taskID: taskID) else { return }
         Task {
             do {
-                try await actions.send(task, prompt)
-                drafts.discardFollowUp(threadID: task.id)
+                try await actions.send(selectedTask, prompt)
+                drafts.discardFollowUp(threadID: taskID)
+                operationState.finishSending(taskID: taskID, error: nil)
             } catch {
-                errorMessage = allowsTaskManagement
-                    ? error.localizedDescription
-                    : nil
+                operationState.finishSending(
+                    taskID: taskID,
+                    error: canManage ? error.localizedDescription : nil
+                )
             }
-            isSending = false
         }
     }
 
@@ -319,12 +323,16 @@ struct RelaySelectedTaskView: View {
     }
 
     private func perform(_ operation: @escaping () async throws -> Void) {
-        errorMessage = nil
+        let taskID = task.id
+        operationState.recordError(nil, taskID: taskID)
         Task {
             do {
                 try await operation()
             } catch {
-                errorMessage = error.localizedDescription
+                operationState.recordError(
+                    error.localizedDescription,
+                    taskID: taskID
+                )
             }
         }
     }

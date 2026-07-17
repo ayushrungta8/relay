@@ -40,6 +40,27 @@ struct RelayTaskSelectionTests {
         )
     }
 
+    @Test
+    func operationStateKeepsSubmissionAndErrorsScopedToTheirTask() {
+        var state = RelayTaskOperationState()
+
+        let beganFirst = state.beginSending(taskID: "first")
+        let rejectedDuplicate = !state.beginSending(taskID: "first")
+        let beganSecond = state.beginSending(taskID: "second")
+
+        #expect(beganFirst)
+        #expect(rejectedDuplicate)
+        #expect(beganSecond)
+
+        state.recordError("First failed", taskID: "first")
+        #expect(state.error(taskID: "second") == nil)
+        #expect(state.error(taskID: "first") == "First failed")
+
+        state.finishSending(taskID: "first", error: nil)
+        let beganFirstAgain = state.beginSending(taskID: "first")
+        #expect(beganFirstAgain)
+    }
+
     private func task(id: String) -> RelayTaskActivity {
         RelayTaskActivity(
             thread: CodexThread(
