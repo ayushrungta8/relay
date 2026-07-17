@@ -64,8 +64,14 @@ final class RelayAppRuntime {
             session: controllerSession,
             router: router
         )
+        let voiceSynthesizer = AppleSpeechSynthesizer(
+            onSpeakingChange: { isSpeaking in
+                Task { await onVoiceEvent(.speaking(isSpeaking)) }
+            }
+        )
         let voiceSink = AppleSpeechCommandSink(
             commandHandler: controllerRuntime,
+            synthesizer: voiceSynthesizer,
             onEvent: onVoiceEvent
         )
 

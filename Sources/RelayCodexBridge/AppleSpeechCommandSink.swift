@@ -24,6 +24,7 @@ extension AppleSpeechCommandSinkError: LocalizedError {
 public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
     private let transcriber: any RelaySpeechTranscribing
     private let commandHandler: any RelayCommandHandling
+    private let synthesizer: any RelaySpeechSynthesizing
     private let onEvent:
         @Sendable (RelayVoiceControllerEvent) async -> Void
 
@@ -34,15 +35,21 @@ public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
     public init(
         transcriber: any RelaySpeechTranscribing = AppleSpeechTranscriber(),
         commandHandler: any RelayCommandHandling,
+        synthesizer: any RelaySpeechSynthesizing,
         onEvent: @escaping @Sendable
             (RelayVoiceControllerEvent) async -> Void = { _ in }
     ) {
         self.transcriber = transcriber
         self.commandHandler = commandHandler
+        self.synthesizer = synthesizer
         self.onEvent = onEvent
     }
 
     public func start() async throws {
+        // A new push-to-talk press silences any answer still being
+        // spoken aloud, so Relay never talks over the user.
+        await synthesizer.stop()
+
         guard state == .idle else {
             throw AppleSpeechCommandSinkError.invalidState
         }
@@ -104,6 +111,7 @@ public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
             activeSessionID = nil
             state = .idle
             await onEvent(.answer(answer))
+            await speakAnswer(answer)
         } catch {
             if activeSessionID == sessionID {
                 activeSessionID = nil
@@ -118,10 +126,23 @@ public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
     }
 
     public func cancel() async {
+        // Stop speaking even when idle: an answer may still be playing
+        // after the turn completed.
+        await synthesizer.stop()
         guard state != .idle else { return }
         activeSessionID = nil
         state = .idle
         await transcriber.cancel()
+    }
+
+    /// Speaks a short spoken summary of the answer — but only if a new
+    /// turn has not begun during the answer stream, so a fresh press is
+    /// never interrupted by the previous reply.
+    private func speakAnswer(_ answer: String) async {
+        guard activeSessionID == nil else { return }
+        let spoken = RelaySpokenSummary.make(from: answer)
+        guard !spoken.isEmpty else { return }
+        await synthesizer.speak(spoken)
     }
 
     private func ensureActive(_ sessionID: UInt64) throws {

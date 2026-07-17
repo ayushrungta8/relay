@@ -29,6 +29,7 @@ final class RelayAppModel {
     private(set) var errorMessage: String?
     var commandText = ""
     private(set) var composerPhase: RelayComposerPhase = .idle
+    private(set) var isSpeaking = false
     private(set) var latestResponse: String?
     private(set) var chatMessages: [RelayChatMessage] = []
     private var observedPendingInteractions: [RelayPendingInteraction] = []
@@ -66,6 +67,21 @@ final class RelayAppModel {
             true
         case .idle, .failed:
             false
+        }
+    }
+
+    /// Transient voice state shown in the notch header in place of the
+    /// resting summary. `.inactive` falls back to the usual "All clear".
+    var voiceActivity: RelayVoiceActivity {
+        switch composerPhase {
+        case .listening:
+            return .listening
+        case .sending:
+            return isSpeaking ? .speaking : .thinking
+        case .idle:
+            return isSpeaking ? .speaking : .inactive
+        case .failed:
+            return .inactive
         }
     }
 
@@ -291,6 +307,7 @@ final class RelayAppModel {
                 composerPhase = .idle
             }
         case .listening:
+            isSpeaking = false
             composerPhase = .listening
         case .finishing:
             voiceAwaitingAnswer = true
@@ -306,6 +323,7 @@ final class RelayAppModel {
     ) async {
         switch event {
         case let .transcript(text):
+            isSpeaking = false
             commandText = text
             appendUserMessage(text)
             composerPhase = .sending
@@ -317,7 +335,10 @@ final class RelayAppModel {
             await refresh()
         case let .answerUpdate(answer):
             receiveAnswerUpdate(answer)
+        case let .speaking(isSpeaking):
+            self.isSpeaking = isSpeaking
         case let .failed(message):
+            isSpeaking = false
             voiceAwaitingAnswer = false
             composerPhase = .failed(message)
         }

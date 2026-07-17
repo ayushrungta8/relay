@@ -15,9 +15,11 @@ struct AppleSpeechCommandSinkTests {
             result: .success("Two worker tasks are active.")
         )
         let recorder = SpeechVoiceEventRecorder()
+        let synthesizer = SpeechSynthesizerSpy()
         let sink = AppleSpeechCommandSink(
             transcriber: transcriber,
             commandHandler: controller,
+            synthesizer: synthesizer,
             onEvent: { event in
                 await recorder.record(event)
             }
@@ -49,6 +51,12 @@ struct AppleSpeechCommandSinkTests {
                     .answer("Two worker tasks are active."),
                 ]
         )
+        // Voice in → voice out: the press barges in (stop) and the final
+        // answer is spoken back as a short summary.
+        #expect(
+            await synthesizer.calls()
+                == [.stop, .speak("Two worker tasks are active.")]
+        )
     }
 
     @Test
@@ -59,9 +67,11 @@ struct AppleSpeechCommandSinkTests {
         let controller = SpeechCommandHandlerStub(
             result: .success("Unexpected")
         )
+        let synthesizer = SpeechSynthesizerSpy()
         let sink = AppleSpeechCommandSink(
             transcriber: transcriber,
-            commandHandler: controller
+            commandHandler: controller,
+            synthesizer: synthesizer
         )
 
         try await sink.start()
@@ -72,6 +82,10 @@ struct AppleSpeechCommandSinkTests {
                 == [.start, .cancel]
         )
         #expect(await controller.prompts().isEmpty)
+        // Nothing is spoken when the turn is cancelled; both the press
+        // and the cancel barge in on any prior speech.
+        #expect(await synthesizer.spokenTexts().isEmpty)
+        #expect(await synthesizer.calls() == [.stop, .stop])
     }
 
     @Test
@@ -86,9 +100,11 @@ struct AppleSpeechCommandSinkTests {
             ]
         )
         let recorder = SpeechVoiceEventRecorder()
+        let synthesizer = SpeechSynthesizerSpy()
         let sink = AppleSpeechCommandSink(
             transcriber: transcriber,
             commandHandler: controller,
+            synthesizer: synthesizer,
             onEvent: { event in
                 await recorder.record(event)
             }
@@ -105,6 +121,12 @@ struct AppleSpeechCommandSinkTests {
         #expect(
             await controller.prompts()
                 == ["First command", "Second command"]
+        )
+        // Only the successful answer is spoken; the failed turn stays
+        // silent.
+        #expect(
+            await synthesizer.spokenTexts()
+                == ["Second command worked."]
         )
         #expect(
             await recorder.events()
@@ -128,7 +150,8 @@ struct AppleSpeechCommandSinkTests {
         )
         let sink = AppleSpeechCommandSink(
             transcriber: transcriber,
-            commandHandler: controller
+            commandHandler: controller,
+            synthesizer: SpeechSynthesizerSpy()
         )
 
         let startTask = Task {
@@ -271,6 +294,33 @@ private actor SpeechVoiceEventRecorder {
     func events() -> [RelayVoiceControllerEvent] {
         recorded
     }
+}
+
+private actor SpeechSynthesizerSpy: RelaySpeechSynthesizing {
+    private var recorded: [SpeechSynthesizerCall] = []
+
+    func speak(_ text: String) {
+        recorded.append(.speak(text))
+    }
+
+    func stop() {
+        recorded.append(.stop)
+    }
+
+    func calls() -> [SpeechSynthesizerCall] {
+        recorded
+    }
+
+    func spokenTexts() -> [String] {
+        recorded.compactMap { call in
+            if case let .speak(text) = call { text } else { nil }
+        }
+    }
+}
+
+private enum SpeechSynthesizerCall: Equatable {
+    case speak(String)
+    case stop
 }
 
 private enum SpeechCommandTestError: Error, LocalizedError {
