@@ -200,6 +200,11 @@ struct RelayPanelPresentationTests {
                 send: { _, _ in },
                 interrupt: { _ in }
             ),
+            usageActions: RelayUsageActions(
+                applyResetCredit: { _ in },
+                setAutoApplyResetCredits: { _ in }
+            ),
+            autoApplyResetCredits: false,
             commandText: .constant(""),
             composerPhase: .idle,
             chatMessages: [],

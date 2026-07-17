@@ -95,6 +95,22 @@ public actor CodexMonitoringClient {
         )
     }
 
+    public func consumeResetCredit(
+        creditID: String?
+    ) async throws -> CodexResetCreditConsumeOutcome {
+        var params: [String: JSONValue] = [
+            "attemptId": .string(UUID().uuidString),
+        ]
+        if let creditID {
+            params["creditId"] = .string(creditID)
+        }
+        let result: CodexResetCreditConsumeResult = try await request(
+            method: "account/rateLimitResetCredit/consume",
+            params: .object(params)
+        )
+        return CodexResetCreditConsumeOutcome(rawOutcome: result.outcome)
+    }
+
     private func receive(_ event: CodexServerEvent) {
         switch event {
         case let .notification(method, params):

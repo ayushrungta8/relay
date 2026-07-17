@@ -88,7 +88,7 @@ enum RelayNotchGeometry {
         case .peek, .compact:
             42
         case .expanded:
-            456
+            520
         }
     }
 }

@@ -18,6 +18,9 @@ struct RelayNotchPanelHost: View {
             pendingInteractions: model.pendingInteractions,
             drafts: state.drafts,
             actions: taskActions,
+            usageActions: usageActions,
+            autoApplyResetCredits:
+                model.activityStore?.autoApplyResetCredits ?? false,
             commandText: $model.commandText,
             composerPhase: model.composerPhase,
             chatMessages: model.chatMessages,
@@ -65,6 +68,32 @@ struct RelayNotchPanelHost: View {
             send: send,
             interrupt: interrupt
         )
+    }
+
+    private var usageActions: RelayUsageActions {
+        RelayUsageActions(
+            applyResetCredit: applyResetCredit,
+            setAutoApplyResetCredits: { enabled in
+                model.activityStore?.autoApplyResetCredits = enabled
+            }
+        )
+    }
+
+    private func applyResetCredit(_ creditID: String) async throws {
+        guard let store = model.activityStore else {
+            throw ActionError.activityUnavailable
+        }
+        let outcome = try await store.applyResetCredit(id: creditID)
+        switch outcome {
+        case .redeemed:
+            break
+        case .noCredit:
+            throw ActionError.creditUnavailable
+        case .alreadyRedeemed:
+            throw ActionError.creditAlreadyRedeemed
+        case let .unrecognized(raw):
+            throw ActionError.creditOutcomeUnrecognized(raw)
+        }
     }
 
     private func select(_ task: RelayTaskActivity) async {
@@ -136,9 +165,21 @@ struct RelayNotchPanelHost: View {
 private extension RelayNotchPanelHost {
     enum ActionError: LocalizedError {
         case activityUnavailable
+        case creditUnavailable
+        case creditAlreadyRedeemed
+        case creditOutcomeUnrecognized(String)
 
         var errorDescription: String? {
-            "Codex task actions are unavailable."
+            switch self {
+            case .activityUnavailable:
+                "Codex task actions are unavailable."
+            case .creditUnavailable:
+                "No reset credit is available to apply."
+            case .creditAlreadyRedeemed:
+                "This reset credit was already redeemed."
+            case let .creditOutcomeUnrecognized(outcome):
+                "Codex returned an unexpected result: \(outcome)."
+            }
         }
     }
 }

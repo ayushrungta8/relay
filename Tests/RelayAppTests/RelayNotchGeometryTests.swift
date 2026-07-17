@@ -113,7 +113,7 @@ struct RelayNotchGeometryTests {
         )
 
         #expect(frame.maxY == 982)
-        #expect(frame.size == CGSize(width: 700, height: 494))
+        #expect(frame.size == CGSize(width: 700, height: 558))
     }
 
     @Test
@@ -127,7 +127,7 @@ struct RelayNotchGeometryTests {
             rightAuxiliaryArea: nil
         )
 
-        #expect(frame.size == CGSize(width: 700, height: 456))
+        #expect(frame.size == CGSize(width: 700, height: 520))
     }
 
     @Test

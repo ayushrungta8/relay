@@ -349,6 +349,123 @@ struct RelayActivityStoreTests {
     }
 }
 
+extension RelayActivityStoreTests {
+    @MainActor
+    @Test
+    func applyingResetCreditConsumesAndRefreshes() async throws {
+        let monitoring = MonitoringStub(
+            results: [
+                .success(.init(tasks: [], usage: nil)),
+            ]
+        )
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {},
+            defaults: ephemeralDefaults()
+        )
+
+        let outcome = try await store.applyResetCredit(id: "credit-1")
+
+        #expect(outcome == .redeemed)
+        #expect(await monitoring.consumedResetCreditIDs() == ["credit-1"])
+        #expect(await monitoring.snapshotCallCount() == 1)
+    }
+
+    @MainActor
+    @Test
+    func autoAppliesCreditExpiringWithinLeadTime() async throws {
+        let expiringSoon = RelayRateLimitResetCredit(
+            id: "soon",
+            title: "Full reset",
+            description: nil,
+            grantedAt: 0,
+            expiresAt: Int64(Date.now.timeIntervalSince1970) + 1_800,
+            resetType: "full",
+            status: "available"
+        )
+        let usage = RelayUsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            resetCreditsAvailableCount: 1,
+            resetCredits: [expiringSoon]
+        )
+        let monitoring = MonitoringStub(
+            results: [
+                .success(.init(tasks: [], usage: usage)),
+                .success(.init(tasks: [], usage: nil)),
+            ]
+        )
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {},
+            defaults: ephemeralDefaults()
+        )
+        store.autoApplyResetCredits = true
+
+        await store.refresh()
+        while await monitoring.consumedResetCreditIDs().isEmpty {
+            await Task.yield()
+        }
+
+        #expect(await monitoring.consumedResetCreditIDs() == ["soon"])
+    }
+
+    @MainActor
+    @Test
+    func doesNotAutoApplyCreditOutsideLeadTime() async throws {
+        let expiresLater = RelayRateLimitResetCredit(
+            id: "later",
+            title: "Full reset",
+            description: nil,
+            grantedAt: 0,
+            expiresAt: Int64(Date.now.timeIntervalSince1970) + 48 * 3_600,
+            resetType: "full",
+            status: "available"
+        )
+        let usage = RelayUsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            resetCreditsAvailableCount: 1,
+            resetCredits: [expiresLater]
+        )
+        let monitoring = MonitoringStub(
+            results: [.success(.init(tasks: [], usage: usage))]
+        )
+        var sleptFor: [Duration] = []
+        let sleeps = AsyncStream<Duration>.makeStream()
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {},
+            sleep: { duration in
+                sleeps.continuation.yield(duration)
+                try await Task.sleep(for: .seconds(60))
+            },
+            defaults: ephemeralDefaults()
+        )
+        store.autoApplyResetCredits = true
+
+        await store.refresh()
+        for await duration in sleeps.stream {
+            sleptFor.append(duration)
+            break
+        }
+
+        #expect(await monitoring.consumedResetCreditIDs().isEmpty)
+        let expected = Duration.seconds(46 * 3_600)
+        #expect(sleptFor.first.map { $0 >= expected } == true)
+    }
+
+    private func ephemeralDefaults() -> UserDefaults {
+        let name = "relay-store-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name) ?? .standard
+        defaults.removePersistentDomain(forName: name)
+        return defaults
+    }
+}
+
 private actor MonitoringStub: RelayActivityMonitoring {
     nonisolated let eventStream: AsyncStream<RelayMonitoringEvent>
     private var results: [Result<RelayMonitoringSnapshot, any Error>]
@@ -374,6 +491,19 @@ private actor MonitoringStub: RelayActivityMonitoring {
     func snapshotCallCount() -> Int {
         snapshotCalls
     }
+
+    private var consumedCreditIDs: [String?] = []
+
+    func consumeResetCredit(
+        creditID: String?
+    ) async throws -> CodexResetCreditConsumeOutcome {
+        consumedCreditIDs.append(creditID)
+        return .redeemed
+    }
+
+    func consumedResetCreditIDs() -> [String?] {
+        consumedCreditIDs
+    }
 }
 
 private actor SuspendedMonitoringStub: RelayActivityMonitoring {
@@ -389,6 +519,12 @@ private actor SuspendedMonitoringStub: RelayActivityMonitoring {
     }
 
     nonisolated func events() -> AsyncStream<RelayMonitoringEvent> { eventStream }
+
+    func consumeResetCredit(
+        creditID: String?
+    ) async throws -> CodexResetCreditConsumeOutcome {
+        .redeemed
+    }
 
     func snapshot(limit: Int) async -> RelayMonitoringSnapshot {
         calls += 1

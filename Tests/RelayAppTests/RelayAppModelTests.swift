@@ -224,6 +224,12 @@ private actor AppModelMonitoringStub: RelayActivityMonitoring {
     func snapshot(limit: Int) throws -> RelayMonitoringSnapshot {
         snapshots.removeFirst()
     }
+
+    func consumeResetCredit(
+        creditID: String?
+    ) async throws -> CodexResetCreditConsumeOutcome {
+        .redeemed
+    }
 }
 
 private actor AppModelTaskOperationsStub: CodexTaskOperating {
