@@ -73,8 +73,6 @@ enum RelayPalette {
         blue: 0.22
     )
     static let hairline = Color.white.opacity(0.095)
-    static let edgeGlow = accent.opacity(0.30)
-    static let shellShadow = Color.black.opacity(0.80)
     static let primaryText = Color.white
     static let secondaryText = Color.white.opacity(0.72)
     static let tertiaryText = Color.white.opacity(0.50)
