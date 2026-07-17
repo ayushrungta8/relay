@@ -9,27 +9,29 @@ struct RelayExpandedHeader: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Label("Relay", systemImage: "arrow.left.arrow.right")
-                .font(.headline)
-                .foregroundStyle(RelayPalette.primaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 9) {
+                RelayBrandSymbol()
+
+                Text("Relay")
+                    .font(.headline)
+                    .foregroundStyle(RelayPalette.primaryText)
+
+                Text(summary)
+                    .font(.callout)
+                    .foregroundStyle(RelayPalette.secondaryText)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Color.clear
                 .frame(width: safeArea.contentClearanceWidth)
                 .accessibilityHidden(true)
 
             HStack(spacing: 10) {
-                Text(summary)
-                    .font(.caption)
-                    .foregroundStyle(RelayPalette.secondaryText)
-                    .lineLimit(1)
-
                 Button(
                     "Open in Codex",
-                    systemImage: "arrow.up.forward.app",
                     action: openInCodex
                 )
-                .labelStyle(.iconOnly)
                 .buttonStyle(.plain)
                 .foregroundStyle(RelayPalette.secondaryText)
                 .disabled(!canOpenInCodex)
@@ -48,6 +50,7 @@ struct RelayExpandedHeader: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 16)
-        .frame(height: max(42, safeArea.topInset))
+        .frame(height: 46)
+        .padding(.top, max(0, safeArea.topInset))
     }
 }

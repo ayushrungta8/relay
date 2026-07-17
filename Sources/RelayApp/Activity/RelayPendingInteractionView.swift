@@ -38,11 +38,6 @@ struct RelayPendingInteractionView: View {
                     .foregroundStyle(RelayPalette.failed)
             }
         }
-        .padding(12)
-        .background(
-            RelayPalette.elevatedSurface,
-            in: .rect(cornerRadius: 10)
-        )
         .disabled(isSubmitting)
         .onChange(of: presentation.interaction?.id) { _, interactionID in
             isSubmitting = false
@@ -171,6 +166,8 @@ struct RelayPendingInteractionView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(RelayPalette.accent)
+                    .foregroundStyle(RelayPalette.primaryText)
                 }
                 if approval.canDecline {
                     Button("Decline", systemImage: "xmark") {

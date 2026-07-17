@@ -60,6 +60,10 @@ struct RelayCapacityPresentation {
         windows.isEmpty ? "Usage unavailable" : "Capacity available"
     }
 
+    var nextResetDate: Date? {
+        windows.compactMap(\.resetDate).min()
+    }
+
     init(snapshot: RelayUsageSnapshot?) {
         let trimmedName = snapshot?.limitName?.trimmingCharacters(
             in: .whitespacesAndNewlines

@@ -52,6 +52,7 @@ struct CodexMonitoringThreadRecord: Decodable {
     let name: String?
     let preview: String
     let cwd: String
+    let path: String?
     let updatedAt: Int
     let status: CodexMonitoringStatusRecord
     let turns: [CodexMonitoringTurnRecord]
@@ -107,10 +108,30 @@ struct CodexMonitoringThreadRecord: Decodable {
     var latestTurnError: String? { turns.last?.error?.message }
 
     var activity: RelayTaskActivity {
-        RelayTaskActivity(
-            thread: thread,
+        activity(sessionSnapshot: nil)
+    }
+
+    func activity(
+        sessionSnapshot: CodexSessionLogSnapshot?
+    ) -> RelayTaskActivity {
+        let isRunning = sessionSnapshot?.isRunning == true
+        let effectiveThread = if isRunning {
+            CodexThread(
+                id: thread.id,
+                name: thread.name,
+                preview: thread.preview,
+                cwd: thread.cwd,
+                updatedAt: thread.updatedAt,
+                status: .active,
+                activeFlags: thread.activeFlags
+            )
+        } else {
+            thread
+        }
+        return RelayTaskActivity(
+            thread: effectiveThread,
             latestUpdate: latestUpdate,
-            latestTurnStatus: latestTurnStatus,
+            latestTurnStatus: isRunning ? .inProgress : latestTurnStatus,
             latestTurnError: latestTurnError
         )
     }

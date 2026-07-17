@@ -6,24 +6,7 @@ import Testing
 struct RelayAccessibilityContractTests {
     @MainActor
     @Test
-    func menuFallbackKeepsEssentialActionsAvailable() {
-        #expect(
-            RelayAccessibilityContract.MenuAction.allCases
-                == [.openRelay, .openCodex, .quit]
-        )
-        #expect(
-            RelayAccessibilityContract.MenuAction.allCases.map(\.title)
-                == ["Open Relay", "Open Codex", "Quit"]
-        )
-    }
-
-    @MainActor
-    @Test
     func primaryControlsHaveStableVoiceOverLabels() {
-        #expect(
-            RelayAccessibilityContract.menuBarLabel
-                == "Relay activity center"
-        )
         #expect(
             RelayAccessibilityContract.commandFieldLabel
                 == "Command to Relay"
@@ -36,17 +19,10 @@ struct RelayAccessibilityContractTests {
 
     @MainActor
     @Test
-    func keyboardShortcutsReachThePanelComposerAndQuitAction() {
-        let openRelay = RelayAccessibilityContract.MenuAction.openRelay
-        let quit = RelayAccessibilityContract.MenuAction.quit
-
-        #expect(openRelay.keyEquivalent == "r")
-        #expect(openRelay.modifiers == [.command, .shift])
+    func keyboardShortcutReachesThePanelComposer() {
         #expect(
             RelayAccessibilityContract.sendCommandKeyEquivalent == .return
         )
-        #expect(quit.keyEquivalent == "q")
-        #expect(quit.modifiers == .command)
     }
 
     @MainActor

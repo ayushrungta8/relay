@@ -7,20 +7,34 @@ struct RelayTaskRail: View {
     let select: (RelayTaskActivity) -> Void
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 4) {
-                ForEach(tasks) { task in
-                    RelayTaskRow(
-                        task: task,
-                        isSelected: task.id == selectedID,
-                        select: { select(task) }
-                    )
-                }
+        VStack(spacing: 0) {
+            HStack {
+                Text("Tasks")
+                Spacer()
+                Text(tasks.count, format: .number)
+                    .monospacedDigit()
             }
-            .padding(8)
+            .font(.callout)
+            .foregroundStyle(RelayPalette.secondaryText)
+            .padding(.horizontal, 18)
+            .frame(height: 40)
+
+            ScrollView {
+                LazyVStack(spacing: 3) {
+                    ForEach(tasks) { task in
+                        RelayTaskRow(
+                            task: task,
+                            isSelected: task.id == selectedID,
+                            select: { select(task) }
+                        )
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
+            }
+            .scrollIndicators(.never)
         }
-        .scrollIndicators(.never)
-        .background(RelayPalette.shell.opacity(0.72))
+        .background(RelayPalette.railSurface)
         .accessibilityLabel("Codex tasks")
     }
 }

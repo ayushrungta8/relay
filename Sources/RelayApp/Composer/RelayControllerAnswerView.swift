@@ -20,7 +20,7 @@ struct RelayControllerAnswerView: View {
             .padding(.vertical, 8)
         }
         .scrollIndicators(.never)
-        .background(RelayPalette.elevatedSurface.opacity(0.82))
+        .background(RelayPalette.elevatedSurface)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Relay answer: \(answer)")
     }

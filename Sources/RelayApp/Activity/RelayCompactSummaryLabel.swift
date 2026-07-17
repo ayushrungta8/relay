@@ -7,23 +7,17 @@ struct RelayCompactSummaryLabel: View {
     var body: some View {
         HStack(spacing: 0) {
             HStack(spacing: 8) {
-                RelayStatusSymbol(
-                    state: activity.compactState,
-                    showsAttentionHalo: true
-                )
-                .labelStyle(.iconOnly)
+                RelayCompactStatusDot(state: activity.compactState)
 
                 Text(activity.compactPrimaryCopy)
-                    .font(.callout)
+                    .font(.body)
                     .bold()
                     .foregroundStyle(RelayPalette.primaryText)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Color.clear
-                .frame(width: safeArea.contentClearanceWidth)
-                .accessibilityHidden(true)
+            Spacer(minLength: 12)
 
             HStack(spacing: 7) {
                 if activity.runningTasks.isEmpty == false {
@@ -45,7 +39,8 @@ struct RelayCompactSummaryLabel: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: max(42, safeArea.topInset))
+        .frame(height: 42)
+        .padding(.top, max(0, safeArea.topInset))
         .contentShape(.rect)
     }
 }

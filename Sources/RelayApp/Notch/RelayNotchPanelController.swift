@@ -12,6 +12,7 @@ final class RelayNotchPanelController {
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
     private var currentScreen: NSScreen?
+    private var hoverCollapseTask: Task<Void, Never>?
     private let panelShortcutMonitor = CarbonGlobalShortcutMonitor(
         identifier: 2
     )
@@ -51,7 +52,7 @@ final class RelayNotchPanelController {
             initialPresentation: .hidden
         )
         interactivePanel = RelayNotchPanel(
-            initialPresentation: .compact
+            initialPresentation: .expanded
         )
         presentationState.presentationRequestHandler = { [weak self] value in
             guard let self else { return }
@@ -59,6 +60,9 @@ final class RelayNotchPanelController {
         }
         presentationState.priorityActivityHandler = { [weak self] trigger in
             self?.presentationCoordinator.observe(trigger)
+        }
+        presentationState.pointerHoverHandler = { [weak self] isInside in
+            self?.pointerHoverChanged(isInside)
         }
         configurePanel(nonactivatingPanel)
         configurePanel(interactivePanel)
@@ -128,6 +132,13 @@ final class RelayNotchPanelController {
             return
         }
         present(target, on: screen ?? screenContainingPointer())
+    }
+
+    func presentDefaultCompact() {
+        present(
+            RelayApplicationPresentation.launchPresentation,
+            on: screenContainingPointer()
+        )
     }
 
     func dismiss() {
@@ -295,7 +306,48 @@ final class RelayNotchPanelController {
         else {
             return
         }
-        dismiss()
+        if presentation == .expanded {
+            present(.compact, on: currentScreen)
+        } else if presentation == .peek {
+            dismiss()
+        }
+    }
+
+    private func pointerHoverChanged(_ isInside: Bool) {
+        hoverCollapseTask?.cancel()
+        hoverCollapseTask = nil
+
+        if isInside {
+            guard let target = RelayHoverPresentation.entryTarget(
+                from: presentation
+            ) else {
+                return
+            }
+            present(target, on: currentScreen)
+            return
+        }
+
+        hoverCollapseTask = Task { [weak self] in
+            do {
+                try await Task.sleep(
+                    for: RelayHoverPresentation.collapseDelay
+                )
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled else { return }
+            let pointerRemainsInside = activePanel?.frame.contains(
+                NSEvent.mouseLocation
+            ) ?? false
+            guard let target = RelayHoverPresentation.exitTarget(
+                from: presentation,
+                draftsCanDismiss: presentationState.drafts.canDismiss,
+                pointerRemainsInside: pointerRemainsInside
+            ) else {
+                return
+            }
+            present(target, on: currentScreen)
+        }
     }
 
     private func removeOutsideClickMonitoring() {
@@ -322,6 +374,7 @@ final class RelayNotchPanelController {
     }
 
     isolated deinit {
+        hoverCollapseTask?.cancel()
         panelShortcutMonitor.stop()
         removeOutsideClickMonitoring()
     }

@@ -172,6 +172,32 @@ struct RelayActivityPresentationTests {
     }
 
     @Test
+    func expandedHeaderCombinesAttentionAndRunningCounts() {
+        let presentation = RelayActivityPresentation(
+            tasks: [
+                activity(
+                    id: "waiting",
+                    title: "Choose a layout",
+                    updatedAt: 200,
+                    status: .active,
+                    activeFlags: [.waitingOnApproval]
+                ),
+                activity(
+                    id: "running",
+                    title: "Build the tray",
+                    updatedAt: 100,
+                    status: .active
+                ),
+            ]
+        )
+
+        #expect(
+            presentation.expandedHeaderSummaryCopy
+                == "1 needs you · 1 running"
+        )
+    }
+
+    @Test
     func ordersTasksByAttentionPriorityThenRecency() {
         let presentation = RelayActivityPresentation(
             tasks: [

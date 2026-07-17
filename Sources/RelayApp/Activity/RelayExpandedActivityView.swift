@@ -23,12 +23,11 @@ struct RelayExpandedActivityView: View {
 
     @State private var selectedTaskID: String?
     @State private var operationState = RelayTaskOperationState()
-    @FocusState private var detailRegionIsFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             RelayExpandedHeader(
-                summary: activity.expandedSummaryCopy,
+                summary: activity.expandedHeaderSummaryCopy,
                 safeArea: safeArea,
                 canOpenInCodex: selectedTask != nil,
                 openInCodex: openSelectedTaskInCodex,
@@ -49,10 +48,8 @@ struct RelayExpandedActivityView: View {
 
                 detailColumn
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .focusable()
-                    .focused($detailRegionIsFocused)
             }
-            .frame(height: 306)
+            .frame(maxHeight: .infinity)
 
             Divider().overlay(RelayPalette.hairline)
 
@@ -60,17 +57,19 @@ struct RelayExpandedActivityView: View {
 
             Divider().overlay(RelayPalette.hairline)
 
-            answerRegion
-                .frame(height: 36)
+            if normalizedLatestResponse != nil {
+                answerRegion
+                    .frame(height: 36)
 
-            Divider().overlay(RelayPalette.hairline)
+                Divider().overlay(RelayPalette.hairline)
+            }
 
             RelayCommandComposerView(
                 text: $commandText,
                 phase: composerPhase,
                 submit: submitCommand
             )
-            .frame(height: 48)
+            .frame(height: 50)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: orderedTaskIDs, initial: true) { _, _ in
@@ -78,7 +77,6 @@ struct RelayExpandedActivityView: View {
                 preferredID: selectedTaskID,
                 orderedTasks: activity.orderedTasks
             )
-            focusSelectedTaskRegion()
         }
     }
 
@@ -157,7 +155,6 @@ struct RelayExpandedActivityView: View {
 
     private func selectTask(_ task: RelayTaskActivity) {
         selectedTaskID = task.id
-        detailRegionIsFocused = true
         Task { await actions.select(task) }
     }
 
@@ -177,11 +174,4 @@ struct RelayExpandedActivityView: View {
         }
     }
 
-    private func focusSelectedTaskRegion() {
-        guard selectedTaskID != nil else { return }
-        Task { @MainActor in
-            await Task.yield()
-            detailRegionIsFocused = true
-        }
-    }
 }

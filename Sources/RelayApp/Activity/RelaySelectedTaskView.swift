@@ -15,19 +15,29 @@ struct RelaySelectedTaskView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                statusHeader
-                contextUsage
-                Divider().overlay(RelayPalette.hairline)
-                actionRegion
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    statusHeader
+
+                    Spacer(minLength: 24)
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        contextUsage
+                        actionRegion
+                    }
+                }
+                .padding(20)
+                .frame(
+                    minHeight: geometry.size.height,
+                    alignment: .top
+                )
+                .id(task.id)
+                .transition(reduceMotion ? .opacity : .relayTaskDetail)
             }
-            .padding(16)
-            .id(task.id)
-            .transition(reduceMotion ? .opacity : .relayTaskDetail)
+            .scrollIndicators(.never)
         }
-        .scrollIndicators(.never)
-        .background(RelayPalette.elevatedSurface.opacity(0.42))
+        .background(RelayPalette.detailSurface)
         .animation(detailAnimation, value: task.id)
         .onChange(of: task.id, initial: true) { _, _ in
             synchronizeFollowUp()
@@ -38,19 +48,18 @@ struct RelaySelectedTaskView: View {
     }
 
     private var statusHeader: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                RelayStatusSymbol(state: task.attentionState)
-                    .font(.caption)
-                Spacer()
-                Text(updatedDate, style: .relative)
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(RelayPalette.tertiaryText)
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            Label(
+                statusTitle,
+                systemImage: RelayAccessibilityContract.status(
+                    for: task.attentionState
+                ).systemImage
+            )
+            .font(.callout)
+            .foregroundStyle(statusColor)
 
             Text(RelayActivityPresentation.title(for: task))
-                .font(.title3.weight(.semibold))
+                .font(.title2)
                 .foregroundStyle(RelayPalette.primaryText)
                 .lineLimit(2)
 
@@ -60,10 +69,13 @@ struct RelaySelectedTaskView: View {
                 .lineLimit(3)
                 .textSelection(.enabled)
 
-            Label(projectName, systemImage: "folder")
-                .font(.caption)
-                .foregroundStyle(RelayPalette.tertiaryText)
-                .lineLimit(1)
+            HStack(spacing: 16) {
+                Text(projectName)
+                Text("Updated \(updatedDate.formatted(.relative(presentation: .named)))")
+            }
+            .font(.callout)
+            .foregroundStyle(RelayPalette.secondaryText)
+            .lineLimit(1)
         }
     }
 
@@ -72,10 +84,7 @@ struct RelaySelectedTaskView: View {
         if let contextPercentage = tokenUsage?.contextPercentage {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Label(
-                        "Latest turn context",
-                        systemImage: "gauge.with.dots.needle.33percent"
-                    )
+                    Text("Context used")
                     Spacer()
                     Text(
                         contextPercentage / 100,
@@ -83,12 +92,16 @@ struct RelaySelectedTaskView: View {
                     )
                     .monospacedDigit()
                 }
-                .font(.caption)
-                .foregroundStyle(RelayPalette.secondaryText)
+                .font(.callout)
+                .foregroundStyle(RelayPalette.primaryText)
 
-                ProgressView(value: clampedContextProgress)
-                    .progressViewStyle(.linear)
-                    .tint(RelayPalette.accent)
+                RelayProgressBar(
+                    progress: clampedContextProgress,
+                    colors: [
+                        RelayPalette.accent,
+                        RelayPalette.accentHighlight,
+                    ]
+                )
                     .id(reduceMotion ? contextPercentage : 0)
                     .transition(.opacity)
                     .animation(contextAnimation, value: contextPercentage)
@@ -147,6 +160,8 @@ struct RelaySelectedTaskView: View {
                     perform { try await actions.open(task) }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(RelayPalette.accent)
+                .foregroundStyle(RelayPalette.primaryText)
 
                 Button("Follow up", systemImage: "paperplane") {
                     drafts.beginFollowUp(threadID: task.id)
@@ -199,7 +214,10 @@ struct RelaySelectedTaskView: View {
                     .buttonStyle(.plain)
                 }
                 .padding(9)
-                .background(RelayPalette.shell, in: .rect(cornerRadius: 8))
+                .background(
+                    RelayPalette.elevatedSurface,
+                    in: .rect(cornerRadius: 8)
+                )
             }
         }
     }
@@ -252,6 +270,26 @@ struct RelaySelectedTaskView: View {
         case .ready: "Completed; open the task for details."
         case .running: "Working; no progress update yet."
         case .idle: "No recent progress update."
+        }
+    }
+
+    private var statusTitle: String {
+        switch task.attentionState {
+        case .needsInput: "Needs your approval"
+        case .failed: "Task failed"
+        case .ready: "Ready to review"
+        case .running: "Running"
+        case .idle: "Recent activity"
+        }
+    }
+
+    private var statusColor: Color {
+        switch task.attentionState {
+        case .needsInput: RelayPalette.needsInput
+        case .failed: RelayPalette.failed
+        case .ready: RelayPalette.ready
+        case .running: RelayPalette.running
+        case .idle: RelayPalette.secondaryText
         }
     }
 

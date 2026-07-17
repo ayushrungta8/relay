@@ -14,6 +14,8 @@ final class RelayNotchPanelState {
         ((RelayPanelPresentation) -> Void)?
     @ObservationIgnored
     var priorityActivityHandler: ((RelayAutomaticPeekTrigger?) -> Void)?
+    @ObservationIgnored
+    var pointerHoverHandler: ((Bool) -> Void)?
 
     func requestPresentation(
         _ presentation: RelayPanelPresentation
@@ -24,7 +26,10 @@ final class RelayNotchPanelState {
 
     func toggleTarget() -> RelayPanelPresentation? {
         let target = presentation.toggled
-        guard target != .hidden || drafts.canDismiss else { return nil }
+        guard target.rawValue >= presentation.rawValue
+                || drafts.canDismiss else {
+            return nil
+        }
         return target
     }
 
@@ -35,5 +40,9 @@ final class RelayNotchPanelState {
 
     func priorityActivityChanged(_ trigger: RelayAutomaticPeekTrigger?) {
         priorityActivityHandler?(trigger)
+    }
+
+    func pointerHoverChanged(_ isInside: Bool) {
+        pointerHoverHandler?(isInside)
     }
 }

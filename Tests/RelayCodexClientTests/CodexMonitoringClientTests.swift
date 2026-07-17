@@ -5,6 +5,33 @@ import Testing
 
 struct CodexMonitoringClientTests {
     @Test
+    func enrichesDesktopOwnedTaskFromItsSharedRollout() async throws {
+        let rollout = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString)
+            .appendingPathExtension("jsonl")
+        try """
+        {"type":"event_msg","payload":{"type":"task_started","turn_id":"turn-live"}}
+        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80000,"cached_input_tokens":20000,"output_tokens":10000,"reasoning_output_tokens":5000,"total_tokens":95000},"last_token_usage":{"input_tokens":30000,"cached_input_tokens":5000,"output_tokens":5000,"reasoning_output_tokens":2000,"total_tokens":35000},"model_context_window":200000},"rate_limits":{"limit_id":"codex","primary":{"used_percent":42,"window_minutes":300,"resets_at":1784228400},"secondary":{"used_percent":68,"window_minutes":10080,"resets_at":1784814400}}}}
+        """.write(to: rollout, atomically: true, encoding: .utf8)
+        let rpc = DesktopOwnedTaskFixtureRPC(rolloutPath: rollout.path)
+        let source = MonitoringEventSource()
+        let client = CodexMonitoringClient(
+            rpc: rpc,
+            serverEvents: source.stream
+        )
+
+        let snapshot = try await client.snapshot(limit: 1)
+
+        #expect(snapshot.tasks.first?.attentionState == .running)
+        #expect(
+            snapshot.tokenUsageByThreadID["desktop-worker"]?
+                .contextPercentage == 17.5
+        )
+        #expect(snapshot.usage?.primary?.windowDurationMins == 300)
+        #expect(snapshot.usage?.secondary?.windowDurationMins == 10_080)
+    }
+
+    @Test
     func readsTasksAndBothRateLimitWindowsAndResetCredits() async throws {
         let rpc = MonitoringFixtureRPC()
         let source = MonitoringEventSource()
@@ -263,6 +290,55 @@ struct CodexMonitoringClientTests {
             "reasoningOutputTokens": .integer(reasoning),
             "totalTokens": .integer(total),
         ])
+    }
+}
+
+private actor DesktopOwnedTaskFixtureRPC: CodexRPCRequesting {
+    let rolloutPath: String
+
+    init(rolloutPath: String) {
+        self.rolloutPath = rolloutPath
+    }
+
+    func requestJSON(
+        method: String,
+        params: JSONValue,
+        timeout: Duration
+    ) async throws -> JSONValue {
+        switch method {
+        case "thread/list", "thread/read":
+            let thread: JSONValue = .object([
+                "id": .string("desktop-worker"),
+                "name": .string("Desktop worker"),
+                "preview": .string("Desktop worker"),
+                "cwd": .string("/tmp"),
+                "updatedAt": .integer(1_784_210_400),
+                "path": .string(rolloutPath),
+                "status": .object(["type": .string("notLoaded")]),
+                "turns": .array([
+                    .object([
+                        "status": .string("interrupted"),
+                        "items": .array([]),
+                    ]),
+                ]),
+            ])
+            return method == "thread/list"
+                ? .object(["data": .array([thread])])
+                : .object(["thread": thread])
+        case "account/rateLimits/read":
+            return .object([
+                "rateLimits": .object([
+                    "limitId": .string("codex"),
+                    "primary": .object([
+                        "usedPercent": .integer(70),
+                        "windowDurationMins": .integer(10_080),
+                    ]),
+                ]),
+                "rateLimitResetCredits": .null,
+            ])
+        default:
+            throw MonitoringFixtureError.unexpectedMethod(method)
+        }
     }
 }
 

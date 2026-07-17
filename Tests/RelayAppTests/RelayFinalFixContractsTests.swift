@@ -104,7 +104,7 @@ struct RelayFinalFixContractsTests {
     }
 
     @Test
-    func panelToggleRefusesToDismissUntilDirtyDraftIsCancelled() {
+    func panelToggleKeepsExpandedWhileDraftIsDirty() {
         let state = RelayNotchPanelState()
         state.presentation = .expanded
         state.drafts.setPendingAnswer(
@@ -117,7 +117,7 @@ struct RelayFinalFixContractsTests {
 
         state.drafts.discardPendingAnswers(interactionID: "interaction")
 
-        #expect(state.toggleTarget() == .hidden)
+        #expect(state.toggleTarget() == .compact)
     }
 
     @Test

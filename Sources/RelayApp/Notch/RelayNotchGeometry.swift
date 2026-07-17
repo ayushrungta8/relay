@@ -5,7 +5,7 @@ enum RelayNotchGeometry {
         for presentation: RelayPanelPresentation,
         screenFrame: CGRect,
         visibleFrame: CGRect,
-        safeAreaInsets _: NSEdgeInsets,
+        safeAreaInsets: NSEdgeInsets,
         leftAuxiliaryArea: CGRect?,
         rightAuxiliaryArea: CGRect?
     ) -> CGRect {
@@ -39,10 +39,9 @@ enum RelayNotchGeometry {
             visibleFrame.height * 0.7,
             topAnchor - visibleFrame.minY
         )
-        let height = min(
-            targetHeight(for: presentation),
-            maximumHeight
-        )
+        let contentHeight = targetHeight(for: presentation)
+        let cameraClearance = max(0, safeAreaInsets.top)
+        let height = min(contentHeight + cameraClearance, maximumHeight)
         let centeredX = screenFrame.midX - width / 2
         let originX = min(
             max(centeredX, visibleFrame.minX),
@@ -76,7 +75,7 @@ enum RelayNotchGeometry {
         case .peek, .compact:
             400
         case .expanded:
-            720
+            700
         }
     }
 
@@ -89,7 +88,7 @@ enum RelayNotchGeometry {
         case .peek, .compact:
             42
         case .expanded:
-            470
+            456
         }
     }
 }

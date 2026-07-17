@@ -21,6 +21,7 @@ struct RelayNotchRootView: View {
     let submitPendingDecision:
         (String, RelayPendingApprovalDecision) async throws -> Void
     let requestPresentation: (RelayPanelPresentation) -> Void
+    let pointerHoverChanged: (Bool) -> Void
     let priorityActivityChanged: (RelayAutomaticPeekTrigger?) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -28,7 +29,12 @@ struct RelayNotchRootView: View {
     var body: some View {
         ZStack {
             notchShape
-            .fill(RelayPalette.shell)
+                .fill(shellLighting)
+
+            RelayAmbientLightView(
+                state: activity.compactState,
+                isExpanded: presentation == .expanded
+            )
 
             Group {
                 switch presentation {
@@ -70,9 +76,26 @@ struct RelayNotchRootView: View {
             .transition(contentTransition)
         }
         .clipShape(notchShape)
+        .overlay {
+            notchShape
+                .stroke(edgeLighting, lineWidth: 1)
+                .shadow(
+                    color: RelayPalette.edgeGlow,
+                    radius: 8,
+                    y: 3
+                )
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .shadow(
+            color: RelayPalette.shellShadow,
+            radius: presentation == .expanded ? 22 : 12,
+            y: presentation == .expanded ? 10 : 5
+        )
         .contentShape(notchShape)
         .tint(RelayPalette.accent)
         .animation(contentAnimation, value: presentation)
+        .onHover(perform: pointerHoverChanged)
         .onChange(of: activity.automaticPeekTrigger, initial: true) {
             _, trigger in
             priorityActivityChanged(trigger)
@@ -112,6 +135,30 @@ struct RelayNotchRootView: View {
     private var notchShape: RelayNotchDropShape {
         RelayNotchDropShape(
             bottomRadius: presentation == .expanded ? 28 : 15
+        )
+    }
+
+    private var edgeLighting: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.13),
+                RelayPalette.accent.opacity(0.48),
+                RelayPalette.accentHighlight.opacity(0.20),
+                Color.white.opacity(0.07),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var shellLighting: LinearGradient {
+        LinearGradient(
+            colors: [
+                RelayPalette.shellRaised,
+                RelayPalette.shell,
+            ],
+            startPoint: .top,
+            endPoint: .bottom
         )
     }
 

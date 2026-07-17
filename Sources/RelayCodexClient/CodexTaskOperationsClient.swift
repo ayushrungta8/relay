@@ -30,6 +30,7 @@ public struct CodexTaskRuntime: Sendable, Equatable {
 public enum CodexTaskOperationsError: Error, Sendable {
     case emptyPrompt
     case noActiveTurn(String)
+    case desktopDeliveryUnavailable(String)
 }
 
 extension CodexTaskOperationsError: LocalizedError {
@@ -39,6 +40,8 @@ extension CodexTaskOperationsError: LocalizedError {
             "Relay cannot start an empty Codex task."
         case let .noActiveTurn(threadID):
             "Codex task \(threadID) has no active turn to interrupt."
+        case let .desktopDeliveryUnavailable(threadID):
+            "Codex task \(threadID) is running in Codex Desktop, but desktop follow-up delivery is unavailable."
         }
     }
 }
@@ -52,10 +55,20 @@ public protocol CodexTaskOperating: Sendable {
 }
 
 public actor CodexTaskOperationsClient: CodexTaskOperating {
-    private let rpc: any CodexRPCRequesting
+    public typealias SendToDesktopTask = @Sendable (
+        _ id: String,
+        _ prompt: String
+    ) async throws -> Void
 
-    public init(rpc: any CodexRPCRequesting) {
+    private let rpc: any CodexRPCRequesting
+    private let sendToDesktopTask: SendToDesktopTask?
+
+    public init(
+        rpc: any CodexRPCRequesting,
+        sendToDesktopTask: SendToDesktopTask? = nil
+    ) {
         self.rpc = rpc
+        self.sendToDesktopTask = sendToDesktopTask
     }
 
     public func listTasks(limit: Int = 25) async throws -> [CodexThread] {
@@ -113,6 +126,21 @@ public actor CodexTaskOperationsClient: CodexTaskOperating {
         prompt: String
     ) async throws -> CodexTaskLaunch {
         let prompt = try normalizedPrompt(prompt)
+        if let sendToDesktopTask {
+            let inspected = try await readTask(id: id)
+            if inspected.status.threadStatus == .notLoaded,
+               let path = inspected.path,
+               let session = try? CodexSessionLogSnapshot.read(
+                   from: URL(filePath: path)
+               ), session.isRunning,
+               let turnID = session.activeTurnID {
+                try await sendToDesktopTask(id, prompt)
+                return CodexTaskLaunch(
+                    thread: inspected.thread,
+                    turnID: turnID
+                )
+            }
+        }
         let runtime = try await resumeTask(id: id)
 
         if let activeTurnID = runtime.activeTurnID {
@@ -185,6 +213,18 @@ public actor CodexTaskOperationsClient: CodexTaskOperating {
         return result.thread.runtime
     }
 
+    private func readTask(id: String) async throws -> ThreadRecord {
+        let result = try await request(
+            method: "thread/read",
+            params: .object([
+                "threadId": .string(id),
+                "includeTurns": .bool(false),
+            ]),
+            as: ThreadReadResult.self
+        )
+        return result.thread
+    }
+
     private func normalizedPrompt(_ prompt: String) throws -> String {
         let normalized = prompt.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -251,6 +291,7 @@ private struct ThreadRecord: Decodable {
     let name: String?
     let preview: String
     let cwd: String
+    let path: String?
     let updatedAt: Int
     let status: StatusRecord
     let turns: [TurnRecord]
@@ -260,6 +301,7 @@ private struct ThreadRecord: Decodable {
         name = thread.name
         preview = thread.preview
         cwd = thread.cwd
+        path = nil
         updatedAt = thread.updatedAt
         status = StatusRecord(type: thread.status.rawValue)
         turns = []

@@ -26,7 +26,9 @@ enum RelayPanelPresentation: Int, CaseIterable, Sendable {
         switch self {
         case .expanded:
             .compact
-        case .hidden, .peek, .compact:
+        case .peek, .compact:
+            .compact
+        case .hidden:
             .hidden
         }
     }
@@ -35,16 +37,18 @@ enum RelayPanelPresentation: Int, CaseIterable, Sendable {
         switch self {
         case .hidden, .peek:
             .expanded
-        case .compact, .expanded:
-            .hidden
+        case .compact:
+            .expanded
+        case .expanded:
+            .compact
         }
     }
 
     var allowsActivation: Bool {
         switch self {
-        case .hidden, .peek:
+        case .hidden, .peek, .compact:
             false
-        case .compact, .expanded:
+        case .expanded:
             true
         }
     }

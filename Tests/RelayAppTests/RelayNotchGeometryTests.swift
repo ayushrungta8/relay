@@ -37,7 +37,7 @@ struct RelayNotchGeometryTests {
 
         #expect(frame.midX == screen.midX)
         #expect(frame.maxY == screen.maxY)
-        #expect(frame.size == CGSize(width: 400, height: 42))
+        #expect(frame.size == CGSize(width: 400, height: 80))
     }
 
     @Test
@@ -68,7 +68,7 @@ struct RelayNotchGeometryTests {
         #expect(
             frame.size == CGSize(
                 width: safeArea.minimumCompactPanelWidth,
-                height: 42
+                height: 80
             )
         )
         #expect(frame.width > safeArea.contentClearanceWidth)
@@ -92,7 +92,7 @@ struct RelayNotchGeometryTests {
     }
 
     @Test
-    func expandedOverlayUsesTheApprovedBoundedSize() {
+    func expandedOverlayReservesTheCameraSafeAreaAboveItsContent() {
         let frame = RelayNotchGeometry.frame(
             for: .expanded,
             screenFrame: CGRect(x: 0, y: 0, width: 1_512, height: 982),
@@ -113,7 +113,7 @@ struct RelayNotchGeometryTests {
         )
 
         #expect(frame.maxY == 982)
-        #expect(frame.size == CGSize(width: 720, height: 470))
+        #expect(frame.size == CGSize(width: 700, height: 494))
     }
 
     @Test
@@ -127,7 +127,7 @@ struct RelayNotchGeometryTests {
             rightAuxiliaryArea: nil
         )
 
-        #expect(frame.size == CGSize(width: 720, height: 470))
+        #expect(frame.size == CGSize(width: 700, height: 456))
     }
 
     @Test

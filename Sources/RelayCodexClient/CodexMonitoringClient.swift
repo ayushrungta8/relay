@@ -54,6 +54,7 @@ public actor CodexMonitoringClient {
         )
 
         var tasks: [RelayTaskActivity] = []
+        var rolloutUsage: RelayUsageSnapshot?
         tasks.reserveCapacity(list.data.count)
         for listedThread in list.data {
             let read: CodexMonitoringThreadReadResult = try await request(
@@ -63,14 +64,29 @@ public actor CodexMonitoringClient {
                     "includeTurns": .bool(true),
                 ])
             )
-            tasks.append(read.thread.activity)
+            let sessionSnapshot = read.thread.path.flatMap {
+                try? CodexSessionLogSnapshot.read(from: URL(filePath: $0))
+            }
+            tasks.append(
+                read.thread.activity(sessionSnapshot: sessionSnapshot)
+            )
+            if let tokenUsage = sessionSnapshot?.tokenUsage {
+                tokenUsageByThreadID[read.thread.id] = tokenUsage
+            }
+            if let sessionUsage = sessionSnapshot?.usage,
+               rolloutUsage == nil {
+                rolloutUsage = sessionUsage
+            }
         }
 
         let rateLimits: CodexRateLimitsReadResult = try await request(
             method: "account/rateLimits/read",
             params: .object([:])
         )
-        let usage = rateLimits.relaySnapshot
+        let accountUsage = rateLimits.relaySnapshot
+        let usage = rolloutUsage.map {
+            accountUsage.mergingSparseUpdate($0)
+        } ?? accountUsage
         latestUsageSnapshot = usage
         return RelayMonitoringSnapshot(
             tasks: tasks,

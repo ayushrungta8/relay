@@ -82,6 +82,22 @@ struct RelayActivityPresentation {
         }
     }
 
+    var expandedHeaderSummaryCopy: String {
+        let needsCount = orderedTasks.count {
+            $0.attentionState == .needsInput
+        }
+        let runningCount = runningTasks.count
+        let parts = [
+            needsCount > 0
+                ? (needsCount == 1 ? "1 needs you" : "\(needsCount) need you")
+                : nil,
+            runningCount > 0
+                ? "\(runningCount) running"
+                : nil,
+        ].compactMap { $0 }
+        return parts.isEmpty ? "All caught up" : parts.joined(separator: " · ")
+    }
+
     init(tasks: [RelayTaskActivity]) {
         let orderedTasks = tasks.sorted(by: Self.taskComesBefore)
         attentionTasks = orderedTasks.filter {

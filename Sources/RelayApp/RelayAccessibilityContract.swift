@@ -2,56 +2,6 @@ import RelayCore
 import SwiftUI
 
 enum RelayAccessibilityContract {
-    enum MenuAction: CaseIterable, Equatable {
-        case openRelay
-        case openCodex
-        case quit
-
-        var title: String {
-            switch self {
-            case .openRelay:
-                "Open Relay"
-            case .openCodex:
-                "Open Codex"
-            case .quit:
-                "Quit"
-            }
-        }
-
-        var systemImage: String {
-            switch self {
-            case .openRelay:
-                "arrow.left.arrow.right"
-            case .openCodex:
-                "arrow.up.forward.app"
-            case .quit:
-                "power"
-            }
-        }
-
-        var keyEquivalent: KeyEquivalent? {
-            switch self {
-            case .openRelay:
-                RelayAccessibilityContract.openRelayKeyEquivalent
-            case .openCodex:
-                nil
-            case .quit:
-                RelayAccessibilityContract.quitKeyEquivalent
-            }
-        }
-
-        var modifiers: EventModifiers {
-            switch self {
-            case .openRelay:
-                RelayAccessibilityContract.openRelayModifiers
-            case .openCodex:
-                []
-            case .quit:
-                RelayAccessibilityContract.quitModifiers
-            }
-        }
-    }
-
     enum MotionStyle: Equatable {
         case crossfade
         case anchoredMovement
@@ -62,14 +12,9 @@ enum RelayAccessibilityContract {
         let systemImage: String
     }
 
-    static let menuBarLabel = "Relay activity center"
     static let commandFieldLabel = "Command to Relay"
     static let sendCommandLabel = "Send command"
-    static let openRelayKeyEquivalent: KeyEquivalent = "r"
-    static let openRelayModifiers: EventModifiers = [.command, .shift]
     static let sendCommandKeyEquivalent = KeyEquivalent.return
-    static let quitKeyEquivalent: KeyEquivalent = "q"
-    static let quitModifiers: EventModifiers = .command
 
     static let attentionStates: [RelayTaskAttentionState] = [
         .needsInput,

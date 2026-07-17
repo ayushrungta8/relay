@@ -6,6 +6,43 @@ import Testing
 @MainActor
 struct RelayPanelPresentationTests {
     @Test
+    func compactIsThePersistentNonactivatingLaunchState() {
+        #expect(RelayApplicationPresentation.launchPresentation == .compact)
+        #expect(RelayApplicationPresentation.activationPolicy == .accessory)
+        #expect(!RelayPanelPresentation.compact.allowsActivation)
+        #expect(RelayPanelPresentation.expanded.allowsActivation)
+    }
+
+    @Test
+    func hoverExpandsAndPointerExitReturnsToCompact() {
+        #expect(
+            RelayHoverPresentation.entryTarget(from: .compact) == .expanded
+        )
+        #expect(
+            RelayHoverPresentation.exitTarget(
+                from: .expanded,
+                draftsCanDismiss: true,
+                pointerRemainsInside: false
+            ) == .compact
+        )
+        #expect(
+            RelayHoverPresentation.exitTarget(
+                from: .expanded,
+                draftsCanDismiss: false,
+                pointerRemainsInside: false
+            ) == nil
+        )
+        #expect(
+            RelayHoverPresentation.exitTarget(
+                from: .expanded,
+                draftsCanDismiss: true,
+                pointerRemainsInside: true
+            ) == nil
+        )
+        #expect(RelayHoverPresentation.collapseDelay == .milliseconds(300))
+    }
+
+    @Test
     func escalationMovesThroughEveryPresentationLevel() {
         #expect(RelayPanelPresentation.hidden.escalated == .peek)
         #expect(RelayPanelPresentation.peek.escalated == .compact)
@@ -16,8 +53,8 @@ struct RelayPanelPresentationTests {
     @Test
     func escapeCollapsesOneLevelBeforeDismissing() {
         #expect(RelayPanelPresentation.expanded.collapsed == .compact)
-        #expect(RelayPanelPresentation.compact.collapsed == .hidden)
-        #expect(RelayPanelPresentation.peek.collapsed == .hidden)
+        #expect(RelayPanelPresentation.compact.collapsed == .compact)
+        #expect(RelayPanelPresentation.peek.collapsed == .compact)
         #expect(RelayPanelPresentation.hidden.collapsed == .hidden)
     }
 
@@ -25,7 +62,7 @@ struct RelayPanelPresentationTests {
     func automaticPeekDoesNotActivateButInteractiveSurfacesCan() {
         #expect(!RelayPanelPresentation.hidden.allowsActivation)
         #expect(!RelayPanelPresentation.peek.allowsActivation)
-        #expect(RelayPanelPresentation.compact.allowsActivation)
+        #expect(!RelayPanelPresentation.compact.allowsActivation)
         #expect(RelayPanelPresentation.expanded.allowsActivation)
     }
 
@@ -35,7 +72,7 @@ struct RelayPanelPresentationTests {
             initialPresentation: .hidden
         )
         let interactivePanel = RelayNotchPanel(
-            initialPresentation: .compact
+            initialPresentation: .expanded
         )
 
         nonactivatingPanel.updatePresentation(.peek)
@@ -44,6 +81,7 @@ struct RelayPanelPresentationTests {
         )
         #expect(!nonactivatingPanel.canBecomeKey)
 
+        nonactivatingPanel.updatePresentation(.compact)
         interactivePanel.updatePresentation(.expanded)
         #expect(
             !interactivePanel.styleMask.contains(.nonactivatingPanel)
@@ -220,10 +258,10 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
-    func directInvocationOpensExpandedAndThenDismisses() {
+    func directInvocationTogglesBetweenExpandedAndCompact() {
         #expect(RelayPanelPresentation.hidden.toggled == .expanded)
         #expect(RelayPanelPresentation.peek.toggled == .expanded)
-        #expect(RelayPanelPresentation.compact.toggled == .hidden)
-        #expect(RelayPanelPresentation.expanded.toggled == .hidden)
+        #expect(RelayPanelPresentation.compact.toggled == .expanded)
+        #expect(RelayPanelPresentation.expanded.toggled == .compact)
     }
 }

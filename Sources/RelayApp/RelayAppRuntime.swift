@@ -24,7 +24,16 @@ final class RelayAppRuntime {
         let controllerIdentity = RelayControllerIdentity(
             store: controllerThreadStore
         )
-        let taskClient = CodexTaskOperationsClient(rpc: rpc)
+        let desktopFollowUpSender = CodexDesktopFollowUpSender()
+        let taskClient = CodexTaskOperationsClient(
+            rpc: rpc,
+            sendToDesktopTask: { id, prompt in
+                try await desktopFollowUpSender.send(
+                    threadID: id,
+                    prompt: prompt
+                )
+            }
+        )
         let monitoringClient = CodexMonitoringClient(client: rpc)
         activityStore = RelayActivityStore(
             monitoring: monitoringClient,

@@ -5,6 +5,35 @@ import Testing
 
 struct CodexTaskOperationsClientTests {
     @Test
+    func runningDesktopTaskUsesDesktopDeliveryInsteadOfResumingIt() async throws {
+        let rollout = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString)
+            .appendingPathExtension("jsonl")
+        try """
+        {"type":"event_msg","payload":{"type":"task_started","turn_id":"live-turn"}}
+        """.write(to: rollout, atomically: true, encoding: .utf8)
+        let rpc = DesktopTaskOperationsRPC(rolloutPath: rollout.path)
+        let delivery = DesktopDeliveryRecorder()
+        let service = CodexTaskOperationsClient(
+            rpc: rpc,
+            sendToDesktopTask: { id, prompt in
+                await delivery.record(id: id, prompt: prompt)
+            }
+        )
+
+        let launch = try await service.sendToTask(
+            id: "desktop-worker",
+            prompt: "Please continue"
+        )
+
+        #expect(launch.turnID == "live-turn")
+        let delivered = await delivery.value()
+        #expect(delivered?.0 == "desktop-worker")
+        #expect(delivered?.1 == "Please continue")
+        #expect(await rpc.recordedMethods() == ["thread/read"])
+    }
+
+    @Test
     func startsAVisibleWorkerThreadAndItsFirstTurn() async throws {
         let rpc = TaskOperationsFixtureRPC()
         let service = CodexTaskOperationsClient(rpc: rpc)
@@ -149,6 +178,56 @@ struct CodexTaskOperationsClientTests {
                 ]
         )
     }
+}
+
+private actor DesktopDeliveryRecorder {
+    private var delivered: (String, String)?
+
+    func record(id: String, prompt: String) {
+        delivered = (id, prompt)
+    }
+
+    func value() -> (String, String)? { delivered }
+}
+
+private actor DesktopTaskOperationsRPC: CodexRPCRequesting {
+    let rolloutPath: String
+    private var methods: [String] = []
+
+    init(rolloutPath: String) {
+        self.rolloutPath = rolloutPath
+    }
+
+    func requestJSON(
+        method: String,
+        params: JSONValue,
+        timeout: Duration
+    ) async throws -> JSONValue {
+        methods.append(method)
+        guard method == "thread/read" else {
+            throw FixtureError.unexpectedMethod(method)
+        }
+        return .object([
+            "thread": .object([
+                "id": .string("desktop-worker"),
+                "name": .string("Desktop worker"),
+                "preview": .string("Desktop worker"),
+                "cwd": .string("/tmp"),
+                "updatedAt": .integer(1_784_210_400),
+                "path": .string(rolloutPath),
+                "status": .object(["type": .string("notLoaded")]),
+                "turns": .array([
+                    .object([
+                        "id": .string("live-turn"),
+                        "status": .string("interrupted"),
+                        "items": .array([]),
+                    ]),
+                ]),
+            ]),
+        ])
+    }
+
+    func recordedMethods() -> [String] { methods }
 }
 
 private actor TaskOperationsFixtureRPC: CodexRPCRequesting {

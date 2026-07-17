@@ -28,6 +28,7 @@ struct RelayNotchPanelHost: View {
             submitPendingAnswers: submitPendingAnswers,
             submitPendingDecision: submitPendingDecision,
             requestPresentation: state.requestPresentation,
+            pointerHoverChanged: state.pointerHoverChanged,
             priorityActivityChanged: state.priorityActivityChanged
         )
     }
