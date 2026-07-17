@@ -23,6 +23,7 @@ struct RelayNotchPanelHost: View {
                 model.activityStore?.autoApplyResetCredits ?? false,
             commandText: $model.commandText,
             composerPhase: model.composerPhase,
+            voiceActivity: model.voiceActivity,
             chatMessages: model.chatMessages,
             connection: connectionPresentation,
             safeArea: state.notchSafeArea,

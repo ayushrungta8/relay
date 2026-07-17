@@ -13,6 +13,7 @@ struct RelayNotchRootView: View {
     let autoApplyResetCredits: Bool
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
+    let voiceActivity: RelayVoiceActivity
     let chatMessages: [RelayChatMessage]
     let connection: RelayConnectionPresentation?
     let safeArea: RelayNotchSafeArea
@@ -51,6 +52,7 @@ struct RelayNotchRootView: View {
                 case .compact:
                     RelayCompactActivityView(
                         activity: activity,
+                        voiceActivity: voiceActivity,
                         safeArea: safeArea,
                         expand: expand
                     )

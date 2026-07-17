@@ -31,6 +31,7 @@ let package = Package(
                 "RelayVoice",
             ],
             linkerSettings: [
+                .linkedFramework("AppKit"),
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("Speech"),
             ]

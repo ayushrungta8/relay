@@ -172,6 +172,27 @@ struct RelayAppModelTests {
 
     @MainActor
     @Test
+    func voiceActivityReflectsThinkingWhileGeneratingThenSettles() async {
+        let handler = BlockingStreamingCommandHandler()
+        let model = RelayAppModel(commandHandler: handler)
+        #expect(model.voiceActivity == .inactive)
+        model.commandText = "Status"
+
+        let submission = Task { await model.submitCommand() }
+        await handler.waitForUpdate()
+        for _ in 0..<100 where model.composerPhase != .sending {
+            await Task.yield()
+        }
+
+        #expect(model.voiceActivity == .thinking)
+
+        await handler.finish()
+        await submission.value
+        #expect(model.voiceActivity == .inactive)
+    }
+
+    @MainActor
+    @Test
     func clearedWaitingStatePermanentlyPrunesResolvingOwnership() async {
         let monitoring = AppModelMonitoringStub(
             snapshots: [

@@ -100,4 +100,23 @@ enum RelayPalette {
     static let idle = tertiaryText
     static let warning = running
     static let critical = failed
+
+    // Voice-interaction states shown in the notch header. A distinct triad
+    // — cool "receiving" cyan, warm "working" amber, soft "speaking" violet
+    // — so the three read apart at a glance and sit well on the dark shell.
+    static let voiceListening = Color(
+        red: 0.36,
+        green: 0.74,
+        blue: 0.98
+    )
+    static let voiceThinking = Color(
+        red: 1.00,
+        green: 0.70,
+        blue: 0.33
+    )
+    static let voiceSpeaking = Color(
+        red: 0.72,
+        green: 0.56,
+        blue: 1.00
+    )
 }
