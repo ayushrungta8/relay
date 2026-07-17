@@ -22,16 +22,13 @@ struct RelayNotchPanelHost: View {
             composerPhase: model.composerPhase,
             latestResponse: model.latestResponse,
             connection: connectionPresentation,
-            topInset: state.topInset,
+            topInset: state.notchSafeArea.topInset,
             submitCommand: submitCommand,
             retryConnection: retryConnection,
             submitPendingAnswers: submitPendingAnswers,
             submitPendingDecision: submitPendingDecision,
             requestPresentation: state.requestPresentation,
-            priorityActivityChanged: state.priorityActivityChanged,
-            reportContentHeight: { presentation, height in
-                state.requestContentHeight(height, for: presentation)
-            }
+            priorityActivityChanged: state.priorityActivityChanged
         )
     }
 

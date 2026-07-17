@@ -22,7 +22,6 @@ struct RelayNotchRootView: View {
         (String, RelayPendingApprovalDecision) async throws -> Void
     let requestPresentation: (RelayPanelPresentation) -> Void
     let priorityActivityChanged: (RelayAutomaticPeekTrigger?) -> Void
-    let reportContentHeight: (RelayPanelPresentation, Double) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -46,11 +45,6 @@ struct RelayNotchRootView: View {
                         state: activity.orderedTasks.first?.attentionState
                             ?? .idle
                     )
-                    .onGeometryChange(for: Double.self) { proxy in
-                        Double(proxy.size.height)
-                    } action: { height in
-                        reportContentHeight(.peek, height)
-                    }
                 case .compact:
                     RelayCompactActivityView(
                         activity: activity,
@@ -60,11 +54,6 @@ struct RelayNotchRootView: View {
                         drafts: drafts,
                         expand: expand
                     )
-                    .onGeometryChange(for: Double.self) { proxy in
-                        Double(proxy.size.height)
-                    } action: { height in
-                        reportContentHeight(.compact, height)
-                    }
                 case .expanded:
                     RelayExpandedActivityView(
                         activity: activity,
@@ -81,8 +70,7 @@ struct RelayNotchRootView: View {
                         retryConnection: retryConnection,
                         submitPendingAnswers: submitPendingAnswers,
                         submitPendingDecision: submitPendingDecision,
-                        collapse: collapse,
-                        contentHeightChanged: reportExpandedHeight
+                        collapse: collapse
                     )
                 }
             }
@@ -132,10 +120,6 @@ struct RelayNotchRootView: View {
     private func collapse() {
         guard drafts.canDismiss else { return }
         requestPresentation(.compact)
-    }
-
-    private func reportExpandedHeight(_ height: Double) {
-        reportContentHeight(.expanded, height)
     }
 
     private var draftOwners: RelayDraftOwners {

@@ -37,15 +37,37 @@ struct RelayNotchGeometryTests {
 
         #expect(frame.midX == screen.midX)
         #expect(frame.maxY == screen.maxY)
-        #expect(frame.width >= rightAuxiliary.minX - leftAuxiliary.maxX)
-        #expect(frame.height > 38)
+        #expect(frame.size == CGSize(width: 400, height: 42))
     }
 
     @Test
-    func noNotchDisplayFallsBackBelowTheMenuBar() {
+    func compactOverlayWidensForABroadCameraObstruction() {
+        let frame = RelayNotchGeometry.frame(
+            for: .compact,
+            screenFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
+            visibleFrame: CGRect(x: 0, y: 25, width: 1_440, height: 837),
+            safeAreaInsets: .init(top: 38, left: 0, bottom: 0, right: 0),
+            leftAuxiliaryArea: CGRect(
+                x: 0,
+                y: 862,
+                width: 480,
+                height: 38
+            ),
+            rightAuxiliaryArea: CGRect(
+                x: 960,
+                y: 862,
+                width: 480,
+                height: 38
+            )
+        )
+
+        #expect(frame.size == CGSize(width: 480, height: 42))
+    }
+
+    @Test
+    func notchlessOverlayUsesTheAbsoluteScreenTop() {
         let screen = CGRect(x: 0, y: 0, width: 1_920, height: 1_080)
         let visible = CGRect(x: 0, y: 0, width: 1_920, height: 1_055)
-
         let frame = RelayNotchGeometry.frame(
             for: .compact,
             screenFrame: screen,
@@ -55,37 +77,47 @@ struct RelayNotchGeometryTests {
             rightAuxiliaryArea: nil
         )
 
-        #expect(frame.midX == visible.midX)
-        #expect(frame.maxY == visible.maxY)
-        #expect(visible.contains(frame))
+        #expect(frame.maxY == screen.maxY)
+        #expect(frame.size == CGSize(width: 400, height: 42))
     }
 
     @Test
-    func measuredContentHeightDrivesThePanelAndStillClampsToTheDisplay() {
-        let screen = CGRect(x: 0, y: 0, width: 1_440, height: 900)
-        let visible = CGRect(x: 0, y: 0, width: 1_440, height: 875)
-
-        let compact = RelayNotchGeometry.frame(
-            for: .compact,
-            contentHeight: 132,
-            screenFrame: screen,
-            visibleFrame: visible,
-            safeAreaInsets: .init(),
-            leftAuxiliaryArea: nil,
-            rightAuxiliaryArea: nil
-        )
-        let oversized = RelayNotchGeometry.frame(
+    func expandedOverlayUsesTheApprovedBoundedSize() {
+        let frame = RelayNotchGeometry.frame(
             for: .expanded,
-            contentHeight: 2_000,
-            screenFrame: screen,
-            visibleFrame: visible,
+            screenFrame: CGRect(x: 0, y: 0, width: 1_512, height: 982),
+            visibleFrame: CGRect(x: 0, y: 25, width: 1_512, height: 919),
+            safeAreaInsets: .init(top: 38, left: 0, bottom: 0, right: 0),
+            leftAuxiliaryArea: CGRect(
+                x: 0,
+                y: 944,
+                width: 644,
+                height: 38
+            ),
+            rightAuxiliaryArea: CGRect(
+                x: 868,
+                y: 944,
+                width: 644,
+                height: 38
+            )
+        )
+
+        #expect(frame.maxY == 982)
+        #expect(frame.size == CGSize(width: 720, height: 470))
+    }
+
+    @Test
+    func largeTaskContentHasNoInputToThePanelFrame() {
+        let frame = RelayNotchGeometry.frame(
+            for: .expanded,
+            screenFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1_440, height: 875),
             safeAreaInsets: .init(),
             leftAuxiliaryArea: nil,
             rightAuxiliaryArea: nil
         )
 
-        #expect(compact.height == 132)
-        #expect(oversized.height == visible.height * 0.7)
+        #expect(frame.size == CGSize(width: 720, height: 470))
     }
 
     @Test
@@ -110,7 +142,7 @@ struct RelayNotchGeometryTests {
         #expect(frame.minX >= visible.minX)
         #expect(frame.maxX <= visible.maxX)
         #expect(frame.minY >= visible.minY)
-        #expect(frame.maxY <= visible.maxY)
+        #expect(frame.maxY == screen.maxY)
         #expect(frame.height <= visible.height * 0.7)
     }
 
@@ -129,6 +161,6 @@ struct RelayNotchGeometryTests {
         )
 
         #expect(frame.size == .zero)
-        #expect(frame.origin == CGPoint(x: visible.midX, y: visible.maxY))
+        #expect(frame.origin == CGPoint(x: visible.midX, y: screen.maxY))
     }
 }

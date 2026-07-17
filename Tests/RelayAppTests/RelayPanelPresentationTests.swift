@@ -91,6 +91,60 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func cameraObstructionReceivesSideClearance() {
+        let safeArea = RelayNotchSafeArea(
+            topInset: 38,
+            obstructionWidth: 224
+        )
+
+        #expect(safeArea.contentClearanceWidth == 248)
+        #expect(
+            RelayNotchSafeArea(topInset: 0, obstructionWidth: 0)
+                .contentClearanceWidth == 190
+        )
+    }
+
+    @Test
+    func hostingViewDoesNotPublishWindowSizingConstraints() {
+        let host = NSHostingView(rootView: Color.clear)
+
+        RelayHostingViewConfiguration.apply(to: host)
+
+        #expect(host.sizingOptions.isEmpty)
+        #expect(host.safeAreaRegions.isEmpty)
+        #expect(host.autoresizingMask == [.width, .height])
+    }
+
+    @Test
+    func expandedSurfaceHasNoWindowSizingFeedbackCallback() {
+        let view = RelayExpandedActivityView(
+            activity: RelayActivityPresentation(tasks: []),
+            capacity: RelayCapacityPresentation(snapshot: nil),
+            tokenUsageByThreadID: [:],
+            pendingInteractions: [],
+            drafts: RelayPanelDraftStore(),
+            actions: RelayTaskActions(
+                select: { _ in },
+                open: { _ in },
+                markRead: { _ in },
+                send: { _, _ in },
+                interrupt: { _ in }
+            ),
+            commandText: .constant(""),
+            composerPhase: .idle,
+            latestResponse: nil,
+            connection: nil,
+            submitCommand: {},
+            retryConnection: {},
+            submitPendingAnswers: { _, _ in },
+            submitPendingDecision: { _, _ in },
+            collapse: {}
+        )
+
+        _ = view
+    }
+
+    @Test
     func swiftUIRequestsPresentationWithoutMutatingPanelStateDirectly() {
         let state = RelayNotchPanelState()
         state.presentation = .compact
@@ -106,17 +160,16 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
-    func swiftUIReportsMeasuredHeightThroughThePanelBoundary() {
+    func panelStatePublishesNotchSafeAreaToSwiftUI() {
         let state = RelayNotchPanelState()
-        var request: (RelayPanelPresentation, Double)?
-        state.contentHeightRequestHandler = { presentation, height in
-            request = (presentation, height)
-        }
+        let safeArea = RelayNotchSafeArea(
+            topInset: 38,
+            obstructionWidth: 224
+        )
 
-        state.requestContentHeight(248, for: .expanded)
+        state.notchSafeArea = safeArea
 
-        #expect(request?.0 == .expanded)
-        #expect(request?.1 == 248)
+        #expect(state.notchSafeArea == safeArea)
     }
 
     @Test

@@ -5,13 +5,13 @@ import Observation
 final class RelayNotchPanelState {
     let drafts = RelayPanelDraftStore()
     var presentation: RelayPanelPresentation = .hidden
-    var topInset: Double = 0
+    var notchSafeArea = RelayNotchSafeArea(
+        topInset: 0,
+        obstructionWidth: 0
+    )
     @ObservationIgnored
     var presentationRequestHandler:
         ((RelayPanelPresentation) -> Void)?
-    @ObservationIgnored
-    var contentHeightRequestHandler:
-        ((RelayPanelPresentation, Double) -> Void)?
     @ObservationIgnored
     var priorityActivityHandler: ((RelayAutomaticPeekTrigger?) -> Void)?
 
@@ -26,13 +26,6 @@ final class RelayNotchPanelState {
         let target = presentation.toggled
         guard target != .hidden || drafts.canDismiss else { return nil }
         return target
-    }
-
-    func requestContentHeight(
-        _ height: Double,
-        for presentation: RelayPanelPresentation
-    ) {
-        contentHeightRequestHandler?(presentation, height)
     }
 
     func requestCollapse() {

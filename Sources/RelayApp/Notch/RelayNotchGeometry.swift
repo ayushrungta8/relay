@@ -3,19 +3,17 @@ import AppKit
 enum RelayNotchGeometry {
     static func frame(
         for presentation: RelayPanelPresentation,
-        contentHeight: Double? = nil,
         screenFrame: CGRect,
         visibleFrame: CGRect,
-        safeAreaInsets: NSEdgeInsets,
+        safeAreaInsets _: NSEdgeInsets,
         leftAuxiliaryArea: CGRect?,
         rightAuxiliaryArea: CGRect?
     ) -> CGRect {
-        let notchWidth = notchWidth(
+        let topAnchor = screenFrame.maxY
+        let obstructionWidth = obstructionWidth(
             leftAuxiliaryArea: leftAuxiliaryArea,
             rightAuxiliaryArea: rightAuxiliaryArea
         )
-        let hasNotch = notchWidth != nil
-        let topAnchor = hasNotch ? screenFrame.maxY : visibleFrame.maxY
 
         guard presentation != .hidden else {
             return CGRect(
@@ -25,11 +23,7 @@ enum RelayNotchGeometry {
         }
 
         let width = min(
-            targetWidth(
-                for: presentation,
-                notchWidth: notchWidth,
-                visibleWidth: visibleFrame.width
-            ),
+            max(targetWidth(for: presentation), obstructionWidth),
             visibleFrame.width
         )
         let maximumHeight = min(
@@ -37,11 +31,7 @@ enum RelayNotchGeometry {
             topAnchor - visibleFrame.minY
         )
         let height = min(
-            targetHeight(
-                for: presentation,
-                topInset: hasNotch ? safeAreaInsets.top : 0,
-                contentHeight: contentHeight
-            ),
+            targetHeight(for: presentation),
             maximumHeight
         )
         let centeredX = screenFrame.midX - width / 2
@@ -58,60 +48,39 @@ enum RelayNotchGeometry {
         )
     }
 
-    private static func notchWidth(
+    private static func obstructionWidth(
         leftAuxiliaryArea: CGRect?,
         rightAuxiliaryArea: CGRect?
-    ) -> Double? {
-        guard
-            let leftAuxiliaryArea,
-            let rightAuxiliaryArea
-        else {
-            return nil
-        }
-
-        let width = rightAuxiliaryArea.minX - leftAuxiliaryArea.maxX
-        return width > 0 ? width : nil
+    ) -> Double {
+        guard let leftAuxiliaryArea, let rightAuxiliaryArea else { return 0 }
+        return Double(
+            max(0, rightAuxiliaryArea.minX - leftAuxiliaryArea.maxX)
+        )
     }
 
     private static func targetWidth(
-        for presentation: RelayPanelPresentation,
-        notchWidth: Double?,
-        visibleWidth: Double
+        for presentation: RelayPanelPresentation
     ) -> Double {
-        let contentWidth: Double = switch presentation {
+        switch presentation {
         case .hidden:
             0
-        case .peek:
-            min(320, visibleWidth)
-        case .compact:
-            min(560, visibleWidth)
+        case .peek, .compact:
+            400
         case .expanded:
-            min(680, visibleWidth)
+            720
         }
-
-        return max(contentWidth, notchWidth ?? 0)
     }
 
     private static func targetHeight(
-        for presentation: RelayPanelPresentation,
-        topInset: Double,
-        contentHeight: Double?
+        for presentation: RelayPanelPresentation
     ) -> Double {
-        if let contentHeight,
-           contentHeight.isFinite,
-           contentHeight > 0
-        {
-            return topInset + contentHeight
-        }
-        return switch presentation {
+        switch presentation {
         case .hidden:
             0
-        case .peek:
-            topInset + 52
-        case .compact:
-            topInset + 180
+        case .peek, .compact:
+            42
         case .expanded:
-            topInset + 520
+            470
         }
     }
 }

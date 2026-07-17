@@ -19,12 +19,8 @@ struct RelayExpandedActivityView: View {
     let submitPendingDecision:
         (String, RelayPendingApprovalDecision) async throws -> Void
     let collapse: () -> Void
-    let contentHeightChanged: (Double) -> Void
 
     @State private var showsUsageDetail = false
-    @State private var headerHeight: Double = 0
-    @State private var scrollContentHeight: Double = 0
-    @State private var composerHeight: Double = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,11 +47,6 @@ struct RelayExpandedActivityView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .onGeometryChange(for: Double.self) { proxy in
-                Double(proxy.size.height)
-            } action: { height in
-                measuredHeader(height)
-            }
 
             Divider()
                 .overlay(RelayPalette.hairline)
@@ -146,11 +137,6 @@ struct RelayExpandedActivityView: View {
                     )
                 }
                 .padding(14)
-                .onGeometryChange(for: Double.self) { proxy in
-                    Double(proxy.size.height)
-                } action: { height in
-                    measuredScrollContent(height)
-                }
             }
             .scrollIndicators(.never)
 
@@ -173,11 +159,6 @@ struct RelayExpandedActivityView: View {
                 )
             }
             .background(RelayPalette.elevatedSurface)
-            .onGeometryChange(for: Double.self) { proxy in
-                Double(proxy.size.height)
-            } action: { height in
-                measuredComposer(height)
-            }
         }
     }
 
@@ -187,34 +168,6 @@ struct RelayExpandedActivityView: View {
 
     private func toggleUsageDetail() {
         showsUsageDetail.toggle()
-    }
-
-    private func measuredHeader(_ height: Double) {
-        headerHeight = height
-        publishContentHeight()
-    }
-
-    private func measuredScrollContent(_ height: Double) {
-        scrollContentHeight = height
-        publishContentHeight()
-    }
-
-    private func measuredComposer(_ height: Double) {
-        composerHeight = height
-        publishContentHeight()
-    }
-
-    private func publishContentHeight() {
-        guard
-            headerHeight > 0,
-            scrollContentHeight > 0,
-            composerHeight > 0
-        else {
-            return
-        }
-        contentHeightChanged(
-            headerHeight + scrollContentHeight + composerHeight + 2
-        )
     }
 }
 
