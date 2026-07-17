@@ -109,7 +109,7 @@ private struct StubbornFixtureCodexExecutable {
     }
 
     func waitForPID() async throws -> pid_t {
-        for _ in 0..<40 {
+        for _ in 0..<200 {
             if let value = try? String(contentsOf: pidFile, encoding: .utf8),
                let pid = pid_t(value.trimmingCharacters(in: .whitespacesAndNewlines)) {
                 return pid

@@ -1,4 +1,4 @@
-# Relay Final Cross-Layer Fix Report
+# Relay Final Cross-Layer Verification
 
 Status: **DONE**
 
@@ -280,3 +280,43 @@ fix: close Relay final rereview residuals
 
 No blocking concerns were found. The verified staged app was intentionally left
 running with exactly one direct app-server child.
+
+## Main-thread Verification
+
+After the final review returned `Ready to release: Yes`, the primary task ran
+the complete verification sequence again.
+
+The first full-suite run exposed a timing-only fixture failure:
+`forceKillsAChildThatIgnoresGracefulShutdown` allowed one second for its child
+shell to be scheduled and write a PID file. The unchanged test passed 20
+consecutive isolated runs, confirming the production transport was not the
+failure source. The fixture now uses the same condition-based poll with a
+five-second ceiling so a fully parallel suite cannot exhaust the setup window.
+
+Fresh final evidence:
+
+```text
+swift test
+Test run with 170 tests in 36 suites passed
+
+swift build -c release
+Build complete
+
+./script/build_and_run_process_test.sh
+exact-path process matching passed
+
+./script/build_and_run.sh --verify
+Relay.app: valid on disk
+Relay.app: satisfies its Designated Requirement
+```
+
+Final runtime inspection:
+
+```text
+exact_app_count=1
+app_pid=11788
+direct_app_server_count=1
+app_server_pid=11818
+```
+
+The exact staged application remains running.
