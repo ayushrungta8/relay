@@ -51,8 +51,10 @@ Relay retains four states with revised roles:
 
 ### Peek and compact
 
-The compact surface is approximately 220–250 points wide and 36–40 points
-tall, widened only when the physical notch requires it. It contains:
+The compact surface targets 400 by 42 points and widens only if the physical
+notch requires it. Its left and right content groups are separated by the
+measured camera-housing width plus 12 points of clearance on each side. It
+contains:
 
 - one semantic state glyph;
 - one short priority summary such as `1 needs you`, `3 running`, or `All clear`;
@@ -64,12 +66,18 @@ not introduce another component vocabulary. It never steals focus.
 
 ### Expanded
 
-The expanded surface targets 660 by 460 points and clamps to the active
+The expanded surface targets 720 by 470 points and clamps to the active
 display's visible bounds. It never grows in response to task count. Overflow is
 handled by internal scrolling.
 
+Every presentation anchors to the absolute top edge of the target screen,
+including notchless and external displays. On a notched display, the top rail
+occupies the menu-bar band and reserves the measured camera obstruction as an
+empty center column. No label or control may render beneath that obstruction.
+
 The shell has a flush top edge, approximately 28-point lower corners, no native
-rectangular window shadow, and a restrained near-black surface. A subtle Relay
+rectangular window shadow, and a deep near-black surface darker than the first
+demo. A subtle Relay
 green state treatment may appear at the active status glyph or a one-pixel
 bottom highlight; it is never decorative background color.
 
@@ -77,8 +85,9 @@ bottom highlight; it is never decorative background color.
 
 ### Top rail
 
-The top rail contains the Relay mark and name, the current aggregate state, and
-compact collapse and open-in-Codex controls. It is one line and does not repeat
+The top rail uses three columns: Relay identity and aggregate state on the left,
+an empty notch-safe center column derived from live display geometry, and
+collapse/open-in-Codex controls on the right. It is one line and does not repeat
 the task counts shown below.
 
 ### Task rail
@@ -135,9 +144,16 @@ needed. The composer is visually subordinate until focused.
 ## Motion and interaction
 
 - Expand from the compact top-center frame into the fixed expanded frame over
-  roughly 220–260 milliseconds with an ease-out curve.
+  roughly 220–260 milliseconds with an ease-out curve. This is the signature
+  motion and must preserve the physical relationship to the notch.
 - Collapse reverses the same spatial relationship.
-- Content crossfades with no more than an 8-point vertical offset.
+- Content crossfades with no more than an 8-point vertical offset and a brief
+  bounded blur during task-detail replacement.
+- Waiting state uses a slow breathing status halo. Running state may use a
+  three-bar waveform. Context and capacity bars animate only when their values
+  change. Row selection shifts no more than 2 points.
+- Motion is state feedback, never a looping decorative background or entrance
+  sequence.
 - Reduce Motion replaces geometry choreography with a short crossfade.
 - Compact click, the global shortcut, and the menu-bar command open expanded
   Relay directly.
@@ -154,6 +170,8 @@ needed. The composer is visually subordinate until focused.
 `RelayNotchGeometry`. `NSHostingView.sizingOptions` is disabled and its safe
 area contribution is cleared because Relay handles notch geometry explicitly.
 The controller no longer stores or reacts to SwiftUI content-height reports.
+It publishes the measured notch width and height to SwiftUI solely for safe
+layout; those measurements do not influence the outer panel size.
 
 Peek and compact use the nonactivating panel. Expanded uses the interactive
 panel. The existing separation avoids mutating activation style on a visible
@@ -231,7 +249,9 @@ composer, and dismissal behavior.
 ## Acceptance criteria
 
 - Compact Relay looks like a small extension of the notch, not a dashboard.
-- Expanded Relay stays near 660 by 460 points and contains no large empty area.
+- Expanded Relay stays near 720 by 470 points and contains no large empty area.
+- The panel begins at the target screen's absolute top edge on every display.
+- Header and compact controls remain outside the measured camera obstruction.
 - No task card is partially clipped at the panel boundary.
 - The user can identify what needs attention, inspect one task, act, check both
   capacity windows, and ask Relay a question without opening Codex.
