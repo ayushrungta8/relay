@@ -35,6 +35,10 @@ struct RelayActivityPresentationTests {
         #expect(presentation.compactPrimaryCopy == "1 needs you")
         #expect(presentation.compactSecondaryCopy == "2 running")
         #expect(presentation.compactState == .needsInput)
+        #expect(
+            presentation.compactAccessibilityCopy
+                == "1 needs you, 2 running"
+        )
     }
 
     @Test
@@ -44,6 +48,87 @@ struct RelayActivityPresentationTests {
         #expect(presentation.compactPrimaryCopy == "All clear")
         #expect(presentation.compactSecondaryCopy == nil)
         #expect(presentation.compactState == .idle)
+    }
+
+    @Test
+    func compactSummaryUsesFailureGrammar() {
+        let presentation = RelayActivityPresentation(
+            tasks: [
+                activity(
+                    id: "failed",
+                    title: "Build failed",
+                    updatedAt: 100,
+                    status: .systemError
+                ),
+            ]
+        )
+
+        #expect(presentation.compactPrimaryCopy == "1 failed")
+        #expect(presentation.compactSecondaryCopy == nil)
+        #expect(presentation.compactState == .failed)
+    }
+
+    @Test
+    func compactSummaryUsesReadyGrammar() {
+        let presentation = RelayActivityPresentation(
+            tasks: [
+                activity(
+                    id: "ready",
+                    title: "Build finished",
+                    updatedAt: 100,
+                    status: .idle,
+                    hasUnreadCompletion: true
+                ),
+            ]
+        )
+
+        #expect(presentation.compactPrimaryCopy == "1 ready")
+        #expect(presentation.compactSecondaryCopy == nil)
+        #expect(presentation.compactState == .ready)
+    }
+
+    @Test
+    func compactSummaryCountsOnlyTheHighestPriorityState() {
+        let presentation = RelayActivityPresentation(
+            tasks: [
+                activity(
+                    id: "waiting",
+                    title: "Needs an answer",
+                    updatedAt: 500,
+                    status: .active,
+                    activeFlags: [.waitingOnUserInput]
+                ),
+                activity(
+                    id: "failed-one",
+                    title: "First failure",
+                    updatedAt: 400,
+                    status: .systemError
+                ),
+                activity(
+                    id: "failed-two",
+                    title: "Second failure",
+                    updatedAt: 300,
+                    status: .systemError
+                ),
+                activity(
+                    id: "ready",
+                    title: "Ready result",
+                    updatedAt: 200,
+                    status: .idle,
+                    hasUnreadCompletion: true
+                ),
+                activity(
+                    id: "running",
+                    title: "Still running",
+                    updatedAt: 100,
+                    status: .active
+                ),
+            ]
+        )
+
+        #expect(presentation.compactPrimaryCopy == "1 needs you")
+        #expect(presentation.compactSecondaryCopy == "2 failed")
+        #expect(presentation.compactState == .needsInput)
     }
 
     @Test
@@ -274,7 +359,8 @@ struct RelayActivityPresentationTests {
         title: String,
         updatedAt: Int,
         status: CodexThreadStatus,
-        activeFlags: [CodexThreadActiveFlag] = []
+        activeFlags: [CodexThreadActiveFlag] = [],
+        hasUnreadCompletion: Bool = false
     ) -> RelayTaskActivity {
         RelayTaskActivity(
             thread: CodexThread(
@@ -285,7 +371,8 @@ struct RelayActivityPresentationTests {
                 updatedAt: updatedAt,
                 status: status,
                 activeFlags: activeFlags
-            )
+            ),
+            hasUnreadCompletion: hasUnreadCompletion
         )
     }
 }

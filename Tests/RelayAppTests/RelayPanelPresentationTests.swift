@@ -52,6 +52,13 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func notchPanelHasNoRectangularWindowShadow() {
+        let panel = RelayNotchPanel(initialPresentation: .compact)
+
+        #expect(!panel.hasShadow)
+    }
+
+    @Test
     func globalClickCapturesTheEventsScreenLocation() throws {
         let eventLocation = CGPoint(x: -340, y: 712)
         let event = try #require(

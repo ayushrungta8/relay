@@ -14,11 +14,7 @@ struct RelayCompactActivityView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open Relay activity center")
-        .accessibilityValue(
-            [activity.compactPrimaryCopy, activity.compactSecondaryCopy]
-                .compactMap { $0 }
-                .joined(separator: ", ")
-        )
+        .accessibilityValue(activity.compactAccessibilityCopy)
         .accessibilityHint("Expands Relay")
     }
 }

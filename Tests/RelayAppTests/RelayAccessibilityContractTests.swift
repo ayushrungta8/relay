@@ -105,5 +105,6 @@ struct RelayAccessibilityContractTests {
         #expect(statuses.allSatisfy { !$0.systemImage.isEmpty })
         #expect(Set(statuses.map(\.label)).count == statuses.count)
         #expect(Set(statuses.map(\.systemImage)).count == statuses.count)
+        #expect(RelayPalette.idle == RelayPalette.tertiaryText)
     }
 }

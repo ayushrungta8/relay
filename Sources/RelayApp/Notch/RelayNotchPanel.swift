@@ -24,6 +24,7 @@ final class RelayNotchPanel: NSPanel {
             backing: .buffered,
             defer: true
         )
+        hasShadow = false
     }
 
     override var canBecomeKey: Bool {

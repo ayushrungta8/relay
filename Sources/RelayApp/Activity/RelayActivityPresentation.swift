@@ -11,30 +11,21 @@ struct RelayActivityPresentation {
     }
 
     var compactPrimaryCopy: String {
-        if attentionTasks.isEmpty == false {
-            return attentionTasks.count == 1
-                ? "1 needs you"
-                : "\(attentionTasks.count) need you"
-        }
-        if runningTasks.isEmpty == false {
-            return runningTasks.count == 1
-                ? "1 running"
-                : "\(runningTasks.count) running"
-        }
-        return "All clear"
+        compactSummaries.first?.copy ?? "All clear"
     }
 
     var compactSecondaryCopy: String? {
-        guard attentionTasks.isEmpty == false,
-              runningTasks.isEmpty == false
-        else { return nil }
-        return runningTasks.count == 1
-            ? "1 running"
-            : "\(runningTasks.count) running"
+        compactSummaries.dropFirst().first?.copy
     }
 
     var compactState: RelayTaskAttentionState {
-        orderedTasks.first?.attentionState ?? .idle
+        compactSummaries.first?.state ?? .idle
+    }
+
+    var compactAccessibilityCopy: String {
+        [compactPrimaryCopy, compactSecondaryCopy]
+            .compactMap { $0 }
+            .joined(separator: ", ")
     }
 
     var automaticPeekTrigger: RelayAutomaticPeekTrigger? {
@@ -143,5 +134,39 @@ struct RelayActivityPresentation {
             return lhs.thread.updatedAt > rhs.thread.updatedAt
         }
         return lhs.id < rhs.id
+    }
+
+    private var compactSummaries: [CompactSummary] {
+        let states: [RelayTaskAttentionState] = [
+            .needsInput,
+            .failed,
+            .ready,
+            .running,
+        ]
+        return states.compactMap { state in
+            let count = orderedTasks.count { $0.attentionState == state }
+            guard count > 0 else { return nil }
+            let copy = switch state {
+            case .needsInput:
+                count == 1 ? "1 needs you" : "\(count) need you"
+            case .failed:
+                count == 1 ? "1 failed" : "\(count) failed"
+            case .ready:
+                count == 1 ? "1 ready" : "\(count) ready"
+            case .running:
+                count == 1 ? "1 running" : "\(count) running"
+            case .idle:
+                "All clear"
+            }
+            return CompactSummary(
+                state: state,
+                copy: copy
+            )
+        }
+    }
+
+    private struct CompactSummary {
+        let state: RelayTaskAttentionState
+        let copy: String
     }
 }

@@ -14,6 +14,6 @@ struct RelayPeekView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open Relay activity center")
-        .accessibilityValue(activity.compactPrimaryCopy)
+        .accessibilityValue(activity.compactAccessibilityCopy)
     }
 }

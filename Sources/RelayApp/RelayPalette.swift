@@ -36,7 +36,7 @@ enum RelayPalette {
     static let needsInput = Color.orange
     static let ready = accent
     static let failed = Color.red
-    static let idle = Color.secondary
+    static let idle = tertiaryText
     static let warning = Color.orange
     static let critical = Color.red
 }
