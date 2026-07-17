@@ -154,14 +154,12 @@ final class RelayNotchPanelController {
     }
 
     private func configurePanel(_ panel: RelayNotchPanel) {
-        panel.level = .screenSaver
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
         panel.isMovable = false
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
-        panel.isFloatingPanel = true
         panel.animationBehavior = .none
         panel.collectionBehavior = [
             .canJoinAllSpaces,

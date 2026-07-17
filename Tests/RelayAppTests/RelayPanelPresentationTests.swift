@@ -114,9 +114,10 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
-    func notchPanelRendersAboveTheSystemMenuBar() {
+    func floatingNotchPanelRendersAboveFullscreenWindows() {
         let panel = RelayNotchPanel(initialPresentation: .expanded)
 
+        #expect(panel.isFloatingPanel)
         #expect(panel.level == .screenSaver)
     }
 

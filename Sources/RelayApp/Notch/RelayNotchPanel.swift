@@ -24,6 +24,7 @@ final class RelayNotchPanel: NSPanel {
             backing: .buffered,
             defer: true
         )
+        isFloatingPanel = true
         level = .screenSaver
         hasShadow = false
     }
