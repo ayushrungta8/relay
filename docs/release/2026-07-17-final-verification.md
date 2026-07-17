@@ -384,9 +384,9 @@ left running with exactly one direct Codex app-server child:
 
 ```text
 exact_app_count=1
-app_pid=66805
+app_pid=68196
 direct_app_server_count=1
-app_server_pid=66821
+app_server_pid=68218
 ```
 
 The exact staged application remains running.
