@@ -1,4 +1,5 @@
 import Foundation
+import RelayBrain
 
 public protocol RelayControllerThreadStoring: Sendable {
     func loadThreadID() async -> String?
@@ -52,6 +53,8 @@ public actor RelayControllerThreadFileStore:
             in: .userDomainMask
         )[0]
         .appendingPathComponent("Relay", isDirectory: true)
-        .appendingPathComponent("controller-thread-id")
+        .appendingPathComponent(
+            "controller-thread-id-v\(RelayControllerInstructions.revision)"
+        )
     }
 }

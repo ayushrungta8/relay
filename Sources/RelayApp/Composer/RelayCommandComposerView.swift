@@ -32,7 +32,6 @@ struct RelayCommandComposerView: View {
                 .accessibilityLabel(
                     RelayAccessibilityContract.commandFieldLabel
                 )
-                .padding(.leading, 5)
                 .frame(maxWidth: .infinity)
 
             Button(
@@ -47,12 +46,12 @@ struct RelayCommandComposerView: View {
                     ? RelayPalette.primaryText
                     : RelayPalette.tertiaryText
             )
-            .frame(width: 36, height: 36)
+            .frame(width: 30, height: 30)
             .background(
                 canSubmit
                     ? RelayPalette.accent
                     : RelayPalette.elevatedSurface,
-                in: .rect(cornerRadius: 10)
+                in: .rect(cornerRadius: 9)
             )
             .shadow(
                 color: RelayPalette.accent.opacity(canSubmit ? 0.28 : 0),
@@ -66,29 +65,14 @@ struct RelayCommandComposerView: View {
                 modifiers: []
             )
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 6)
-        .frame(height: 42)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            RelayPalette.fieldSurface,
-            in: .rect(cornerRadius: 14)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(
-                    isFocused
-                        ? RelayPalette.accent.opacity(0.72)
-                        : RelayPalette.fieldBorder,
-                    lineWidth: 1
-                )
-        }
-        .shadow(
-            color: RelayPalette.accent.opacity(isFocused ? 0.13 : 0),
-            radius: 8
+            isFocused
+                ? RelayPalette.fieldSurface.opacity(0.72)
+                : RelayPalette.shell
         )
         .controlSize(.regular)
-        .padding(.horizontal, 13)
-        .background(RelayPalette.shell)
         .onChange(of: phase) { _, newPhase in
             submissionGate.phaseDidChange(to: newPhase)
         }

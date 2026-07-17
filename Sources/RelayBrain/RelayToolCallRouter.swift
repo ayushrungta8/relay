@@ -56,7 +56,11 @@ public actor RelayToolCallRouter {
                     from: argumentsJSON,
                     allowedKeys: []
                 )
-                let tasks = try await operations.listTasks()
+                let tasks = if let visible = await supervision.visibleTasks() {
+                    visible
+                } else {
+                    try await operations.listTasks()
+                }
                 return success(
                     TasksPayload(
                         ok: true,
@@ -82,7 +86,13 @@ public actor RelayToolCallRouter {
                         message: "Which task do you mean? Select a task or name it."
                     )
                 }
-                guard let task = try await operations.getTask(id: id) else {
+                let task: RelayTaskSummary?
+                if let visible = await supervision.visibleTasks() {
+                    task = visible.first { $0.id == id }
+                } else {
+                    task = try await operations.getTask(id: id)
+                }
+                guard let task else {
                     return failure(
                         toolName: toolName,
                         code: "task_not_found",

@@ -41,6 +41,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
     private var isStarted = false
     private var eventTask: Task<Void, Never>?
     private var cachedController: RelayControllerThread?
+    private var controllerConfiguration: RelayControllerConfiguration?
     private var activeTurn: ActiveControllerTurn?
     private var toolRequestIDs: [String: JSONRPCRequestID] = [:]
 
@@ -72,6 +73,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
         configuration: RelayControllerConfiguration
     ) async throws -> RelayControllerThread {
         try await ensureRPCStarted()
+        controllerConfiguration = configuration
 
         if let cachedController {
             return cachedController
@@ -102,6 +104,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
                 ),
                 "dynamicTools": tools,
                 "ephemeral": .bool(false),
+                "model": .string(configuration.model),
                 "sandbox": .string("read-only"),
             ]),
             timeout: .seconds(15)
@@ -131,6 +134,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
             throw CodexControllerSessionError.submissionInProgress
         }
         try await ensureRPCStarted()
+        let configuration = controllerConfiguration ?? .default
 
         let pair = AsyncThrowingStream<RelayControllerEvent, any Error>
             .makeStream(bufferingPolicy: .unbounded)
@@ -138,6 +142,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
             threadID: controller.id,
             turnID: nil,
             accumulatedText: "",
+            finalAnswerMessageIDs: [],
             continuation: pair.continuation
         )
 
@@ -147,6 +152,8 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
                 params: .object([
                     "threadId": .string(controller.id),
                     "input": Self.textInput(command),
+                    "model": .string(configuration.model),
+                    "effort": .string(configuration.reasoningEffort),
                 ]),
                 timeout: .seconds(15)
             )
@@ -227,6 +234,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
                         configuration.developerInstructions
                     ),
                     "approvalPolicy": .string("never"),
+                    "model": .string(configuration.model),
                     "sandbox": .string("read-only"),
                 ]),
                 timeout: .seconds(15)
@@ -362,8 +370,18 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
 
         adoptTurnID(from: params)
         switch method {
+        case "item/started":
+            guard let item = params["item"]?.objectValue,
+                  item["type"]?.stringValue == "agentMessage",
+                  item["phase"]?.stringValue == "final_answer",
+                  let itemID = item["id"]?.stringValue else {
+                return
+            }
+            activeTurn?.finalAnswerMessageIDs.insert(itemID)
         case "item/agentMessage/delta":
-            if let delta = params["delta"]?.stringValue {
+            if let itemID = params["itemId"]?.stringValue,
+               activeTurn?.finalAnswerMessageIDs.contains(itemID) == true,
+               let delta = params["delta"]?.stringValue {
                 activeTurn?.accumulatedText += delta
                 activeTurn?.continuation.yield(.textDelta(delta))
             }
@@ -499,6 +517,7 @@ private struct ActiveControllerTurn {
     let threadID: String
     var turnID: String?
     var accumulatedText: String
+    var finalAnswerMessageIDs: Set<String>
     let continuation:
         AsyncThrowingStream<RelayControllerEvent, any Error>.Continuation
 }

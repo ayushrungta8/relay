@@ -158,19 +158,11 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     }
 
     func attentionInbox() async -> [RelayTaskSummary] {
-        attentionTasks.map { task in
-            RelayTaskSummary(
-                id: task.id,
-                title: Self.title(for: task),
-                project: task.thread.cwd,
-                status: Self.status(for: task.attentionState),
-                updatedAt: Date(
-                    timeIntervalSince1970:
-                        TimeInterval(task.thread.updatedAt)
-                ),
-                latestUpdate: task.latestUpdate
-            )
-        }
+        attentionTasks.map(Self.summary(for:))
+    }
+
+    func visibleTasks() async -> [RelayTaskSummary]? {
+        (attentionTasks + runningTasks + recentTasks).map(Self.summary(for:))
     }
 
     func currentUsage() async -> RelayControllerUsage? {
@@ -314,6 +306,21 @@ final class RelayActivityStore: RelaySupervisionStateReading {
             in: .whitespacesAndNewlines
         )
         return preview.isEmpty ? "Untitled Codex task" : preview
+    }
+
+    private static func summary(
+        for task: RelayTaskActivity
+    ) -> RelayTaskSummary {
+        RelayTaskSummary(
+            id: task.id,
+            title: title(for: task),
+            project: task.thread.cwd,
+            status: status(for: task.attentionState),
+            updatedAt: Date(
+                timeIntervalSince1970: TimeInterval(task.thread.updatedAt)
+            ),
+            latestUpdate: task.latestUpdate
+        )
     }
 
     private static func status(

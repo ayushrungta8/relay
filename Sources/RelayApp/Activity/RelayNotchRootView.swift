@@ -11,7 +11,7 @@ struct RelayNotchRootView: View {
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
-    let latestResponse: String?
+    let chatMessages: [RelayChatMessage]
     let connection: RelayConnectionPresentation?
     let safeArea: RelayNotchSafeArea
     let submitCommand: () -> Void
@@ -62,7 +62,7 @@ struct RelayNotchRootView: View {
                         actions: actions,
                         commandText: $commandText,
                         composerPhase: composerPhase,
-                        latestResponse: latestResponse,
+                        chatMessages: chatMessages,
                         connection: connection,
                         safeArea: safeArea,
                         submitCommand: submitCommand,

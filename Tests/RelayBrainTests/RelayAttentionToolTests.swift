@@ -4,6 +4,39 @@ import Testing
 
 struct RelayAttentionToolTests {
     @Test
+    func taskStatusReadsUseTheEnrichedSupervisionSnapshot() async throws {
+        let operations = SupervisionTaskOperationsStub(
+            tasksByID: [
+                "worker": makeTask(id: "worker", status: "notLoaded"),
+            ]
+        )
+        let router = RelayToolCallRouter(
+            operations: operations,
+            supervision: SupervisionStateStub(
+                visible: [makeTask(id: "worker", status: "running")]
+            )
+        )
+
+        let list = await router.route(
+            toolName: "relay_list_tasks",
+            argumentsJSON: "{}"
+        )
+        let listedTasks = try #require(
+            try resultObject(list)["tasks"] as? [[String: Any]]
+        )
+        #expect(listedTasks.first?["status"] as? String == "running")
+
+        let get = await router.route(
+            toolName: "relay_get_task",
+            argumentsJSON: #"{"id":"worker"}"#
+        )
+        let task = try #require(
+            try resultObject(get)["task"] as? [String: Any]
+        )
+        #expect(task["status"] as? String == "running")
+    }
+
+    @Test
     func attentionInboxReturnsCurrentWaitingTasks() async throws {
         let state = SupervisionStateStub(
             attention: [makeTask(id: "needs-user", status: "needsInput")]
@@ -161,20 +194,24 @@ private actor SupervisionTaskOperationsStub: RelayTaskOperations {
 }
 
 private struct SupervisionStateStub: RelaySupervisionStateReading {
+    let visible: [RelayTaskSummary]?
     let attention: [RelayTaskSummary]
     let usage: RelayControllerUsage?
     let context: RelayTaskReferenceContext
 
     init(
+        visible: [RelayTaskSummary]? = nil,
         attention: [RelayTaskSummary] = [],
         usage: RelayControllerUsage? = nil,
         context: RelayTaskReferenceContext = .init()
     ) {
+        self.visible = visible
         self.attention = attention
         self.usage = usage
         self.context = context
     }
 
+    func visibleTasks() async -> [RelayTaskSummary]? { visible }
     func attentionInbox() async -> [RelayTaskSummary] { attention }
     func currentUsage() async -> RelayControllerUsage? { usage }
     func taskReferenceContext() async -> RelayTaskReferenceContext { context }

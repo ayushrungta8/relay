@@ -201,7 +201,7 @@ struct RelayPanelPresentationTests {
             ),
             commandText: .constant(""),
             composerPhase: .idle,
-            latestResponse: nil,
+            chatMessages: [],
             connection: nil,
             safeArea: RelayNotchSafeArea(
                 topInset: 38,

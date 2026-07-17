@@ -111,6 +111,14 @@ struct RelayAppModelTests {
 
         #expect(await handler.prompts() == ["Build the command box"])
         #expect(model.latestResponse == "I started a worker task.")
+        #expect(model.chatMessages.map(\.role) == [.user, .relay])
+        #expect(
+            model.chatMessages.map(\.text)
+                == [
+                    "Build the command box",
+                    "I started a worker task.",
+                ]
+        )
         #expect(model.commandText.isEmpty)
         #expect(model.composerPhase == .idle)
     }
@@ -151,11 +159,15 @@ struct RelayAppModelTests {
         }
 
         #expect(model.latestResponse == "Partial answer")
+        #expect(model.chatMessages.last?.text == "Partial answer")
+        #expect(model.chatMessages.count == 2)
         #expect(model.composerPhase == .sending)
 
         await handler.finish()
         await submission.value
         #expect(model.latestResponse == "Partial answer completed.")
+        #expect(model.chatMessages.last?.text == "Partial answer completed.")
+        #expect(model.chatMessages.count == 2)
     }
 
     @MainActor

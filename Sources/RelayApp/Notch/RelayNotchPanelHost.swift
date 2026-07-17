@@ -20,7 +20,7 @@ struct RelayNotchPanelHost: View {
             actions: taskActions,
             commandText: $model.commandText,
             composerPhase: model.composerPhase,
-            latestResponse: model.latestResponse,
+            chatMessages: model.chatMessages,
             connection: connectionPresentation,
             safeArea: state.notchSafeArea,
             submitCommand: submitCommand,

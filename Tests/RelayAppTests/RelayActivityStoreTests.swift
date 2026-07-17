@@ -8,7 +8,7 @@ import Testing
 struct RelayActivityStoreTests {
     @MainActor
     @Test
-    func exposesCurrentAttentionUsageAndTaskReferenceContext() async {
+    func exposesCurrentAttentionUsageAndTaskReferenceContext() async throws {
         let usage = RelayUsageSnapshot(
             limitID: "codex",
             limitName: "Codex",
@@ -36,6 +36,17 @@ struct RelayActivityStoreTests {
                                     activeFlags: [.waitingOnUserInput]
                                 )
                             ),
+                            RelayTaskActivity(
+                                thread: CodexThread(
+                                    id: "running",
+                                    name: "Running task",
+                                    preview: "Running task",
+                                    cwd: "/Projects/Relay",
+                                    updatedAt: 99,
+                                    status: .active
+                                ),
+                                latestUpdate: "Implementing the fix"
+                            ),
                         ],
                         usage: usage
                     )
@@ -52,6 +63,9 @@ struct RelayActivityStoreTests {
         await store.select(threadID: "waiting")
 
         let reader: any RelaySupervisionStateReading = store
+        let visibleTasks = try #require(await reader.visibleTasks())
+        #expect(visibleTasks.map(\.id) == ["waiting", "running"])
+        #expect(visibleTasks.map(\.status) == ["needsInput", "running"])
         #expect(await reader.attentionInbox().map(\.id) == ["waiting"])
         #expect(await reader.currentUsage()?.primary?.usedPercent == 71)
         #expect(

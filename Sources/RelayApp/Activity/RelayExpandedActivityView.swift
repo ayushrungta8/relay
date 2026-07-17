@@ -10,7 +10,7 @@ struct RelayExpandedActivityView: View {
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
-    let latestResponse: String?
+    let chatMessages: [RelayChatMessage]
     let connection: RelayConnectionPresentation?
     let safeArea: RelayNotchSafeArea
     let submitCommand: () -> Void
@@ -23,6 +23,7 @@ struct RelayExpandedActivityView: View {
 
     @State private var selectedTaskID: String?
     @State private var operationState = RelayTaskOperationState()
+    @State private var selectedSection = RelayExpandedSection.activity
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +37,43 @@ struct RelayExpandedActivityView: View {
 
             Divider().overlay(RelayPalette.hairline)
 
+            RelayExpandedSectionPicker(selection: $selectedSection)
+
+            Divider().overlay(RelayPalette.hairline)
+
+            switch selectedSection {
+            case .activity:
+                activityRegion
+            case .chat:
+                RelayChatView(messages: chatMessages)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            Divider().overlay(RelayPalette.hairline)
+
+            RelayCommandComposerView(
+                text: $commandText,
+                phase: composerPhase,
+                submit: submitCommand
+            )
+            .frame(height: 50)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onChange(of: orderedTaskIDs, initial: true) { _, _ in
+            selectedTaskID = RelayTaskSelection.resolvedID(
+                preferredID: selectedTaskID,
+                orderedTasks: activity.orderedTasks
+            )
+        }
+        .onChange(of: chatMessages.count, initial: true) { _, count in
+            if count > 0 {
+                selectedSection = .chat
+            }
+        }
+    }
+
+    private var activityRegion: some View {
+        VStack(spacing: 0) {
             HStack(spacing: 0) {
                 RelayTaskRail(
                     tasks: activity.orderedTasks,
@@ -54,29 +92,6 @@ struct RelayExpandedActivityView: View {
             Divider().overlay(RelayPalette.hairline)
 
             RelayCapacityFooter(presentation: capacity)
-
-            Divider().overlay(RelayPalette.hairline)
-
-            if normalizedLatestResponse != nil {
-                answerRegion
-                    .frame(height: 36)
-
-                Divider().overlay(RelayPalette.hairline)
-            }
-
-            RelayCommandComposerView(
-                text: $commandText,
-                phase: composerPhase,
-                submit: submitCommand
-            )
-            .frame(height: 50)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onChange(of: orderedTaskIDs, initial: true) { _, _ in
-            selectedTaskID = RelayTaskSelection.resolvedID(
-                preferredID: selectedTaskID,
-                orderedTasks: activity.orderedTasks
-            )
         }
     }
 
@@ -127,15 +142,6 @@ struct RelayExpandedActivityView: View {
         }
     }
 
-    @ViewBuilder
-    private var answerRegion: some View {
-        if let answer = normalizedLatestResponse {
-            RelayControllerAnswerView(answer: answer)
-        } else {
-            Color.clear.accessibilityHidden(true)
-        }
-    }
-
     private var orderedTaskIDs: [String] {
         activity.orderedTasks.map(\.id)
     }
@@ -143,14 +149,6 @@ struct RelayExpandedActivityView: View {
     private var selectedTask: RelayTaskActivity? {
         guard let selectedTaskID else { return nil }
         return activity.orderedTasks.first { $0.id == selectedTaskID }
-    }
-
-    private var normalizedLatestResponse: String? {
-        let answer = latestResponse?.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        guard let answer, !answer.isEmpty else { return nil }
-        return answer
     }
 
     private func selectTask(_ task: RelayTaskActivity) {

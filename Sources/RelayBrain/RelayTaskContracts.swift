@@ -117,7 +117,12 @@ public struct RelayTaskReferenceContext: Sendable, Equatable {
 }
 
 public protocol RelaySupervisionStateReading: Sendable {
+    func visibleTasks() async -> [RelayTaskSummary]?
     func attentionInbox() async -> [RelayTaskSummary]
     func currentUsage() async -> RelayControllerUsage?
     func taskReferenceContext() async -> RelayTaskReferenceContext
+}
+
+public extension RelaySupervisionStateReading {
+    func visibleTasks() async -> [RelayTaskSummary]? { nil }
 }

@@ -55,6 +55,13 @@ struct RelayContractsTests {
         #expect(instructions.contains("relay_list_tasks"))
         #expect(instructions.contains("relay_send_to_task"))
         #expect(instructions.contains("succinct"))
+        #expect(instructions.contains("quietly confident"))
+        #expect(instructions.contains("generic assistant phrases"))
+        #expect(instructions.contains("surface what needs you"))
+        #expect(instructions.contains("one to four short sentences"))
+        #expect(instructions.contains("sole authority for current activity"))
+        #expect(instructions.contains("historical context, not live evidence"))
+        #expect(instructions.contains("does not mean inactive"))
     }
 
     @Test

@@ -30,6 +30,7 @@ final class RelayAppModel {
     var commandText = ""
     private(set) var composerPhase: RelayComposerPhase = .idle
     private(set) var latestResponse: String?
+    private(set) var chatMessages: [RelayChatMessage] = []
     private var observedPendingInteractions: [RelayPendingInteraction] = []
     private var resolvingInteractionsByID:
         [String: RetainedResolvingInteraction] = [:]
@@ -175,14 +176,16 @@ final class RelayAppModel {
 
         composerPhase = .sending
         latestResponse = nil
+        appendUserMessage(command)
 
         do {
-            latestResponse = try await commandHandler.submit(
+            let answer = try await commandHandler.submit(
                 command,
                 onAnswerUpdate: { [weak self] answer in
                     await self?.receiveAnswerUpdate(answer)
                 }
             )
+            receiveAnswerUpdate(answer)
             commandText = ""
             composerPhase = .idle
             await refresh()
@@ -304,15 +307,16 @@ final class RelayAppModel {
         switch event {
         case let .transcript(text):
             commandText = text
+            appendUserMessage(text)
             composerPhase = .sending
         case let .answer(answer):
-            latestResponse = answer
+            receiveAnswerUpdate(answer)
             commandText = ""
             voiceAwaitingAnswer = false
             composerPhase = .idle
             await refresh()
         case let .answerUpdate(answer):
-            latestResponse = answer
+            receiveAnswerUpdate(answer)
         case let .failed(message):
             voiceAwaitingAnswer = false
             composerPhase = .failed(message)
@@ -401,6 +405,19 @@ final class RelayAppModel {
 
     private func receiveAnswerUpdate(_ answer: String) {
         latestResponse = answer
+        if chatMessages.last?.role == .relay {
+            chatMessages[chatMessages.count - 1].text = answer
+        } else {
+            chatMessages.append(
+                RelayChatMessage(role: .relay, text: answer)
+            )
+        }
+    }
+
+    private func appendUserMessage(_ text: String) {
+        chatMessages.append(
+            RelayChatMessage(role: .user, text: text)
+        )
     }
 
     func reportPanelShortcutFailure(_ message: String) {

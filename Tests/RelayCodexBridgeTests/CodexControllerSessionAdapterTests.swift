@@ -6,6 +6,14 @@ import Testing
 
 struct CodexControllerSessionAdapterTests {
     @Test
+    func controllerCacheChangesWhenItsBehaviorPromptChanges() {
+        #expect(
+            RelayControllerThreadFileStore.defaultFileURL.lastPathComponent
+                == "controller-thread-id-v3"
+        )
+    }
+
+    @Test
     func createsAndPersistsAControllerThreadWithDynamicTools() async throws {
         let rpc = ControllerRPCStub()
         let store = ControllerThreadStoreStub()
@@ -27,6 +35,7 @@ struct CodexControllerSessionAdapterTests {
         )
         #expect(startParams["ephemeral"] == .bool(false))
         #expect(startParams["cwd"] == .string("/Users/test/Work"))
+        #expect(startParams["model"] == .string("gpt-5.6-luna"))
         #expect(
             startParams["developerInstructions"]?.stringValue
                 == RelayControllerInstructions.developer
@@ -54,6 +63,11 @@ struct CodexControllerSessionAdapterTests {
             to: controller
         )
         var iterator = stream.makeAsyncIterator()
+        let turnParams = try #require(
+            await rpc.params(for: "turn/start")?.objectValue
+        )
+        #expect(turnParams["model"] == .string("gpt-5.6-luna"))
+        #expect(turnParams["effort"] == .string("medium"))
 
         await rpc.emit(
             .serverRequest(
@@ -95,17 +109,14 @@ struct CodexControllerSessionAdapterTests {
                 == #"{"ok":true,"tasks":[]}"#
         )
 
-        await rpc.emit(
-            .notification(
-                method: "item/agentMessage/delta",
-                params: .object([
-                    "threadId": .string("controller-1"),
-                    "turnId": .string("turn-1"),
-                    "itemId": .string("message-1"),
-                    "delta": .string("Two tasks are active."),
-                ])
-            )
-        )
+        await rpc.emit(agentMessageStarted(
+            id: "message-1",
+            phase: "final_answer"
+        ))
+        await rpc.emit(agentMessageDelta(
+            id: "message-1",
+            text: "Two tasks are active."
+        ))
         let deltaEvent = try #require(try await iterator.next())
         #expect(deltaEvent == .textDelta("Two tasks are active."))
         await rpc.emit(
@@ -131,6 +142,79 @@ struct CodexControllerSessionAdapterTests {
 
         let finalEvent = try #require(try await iterator.next())
         #expect(finalEvent == .finalText("Two tasks are active."))
+        #expect(try await iterator.next() == nil)
+    }
+
+    @Test
+    func streamsOnlyFinalAnswerMessagesIntoRelayChat() async throws {
+        let rpc = ControllerRPCStub()
+        let session = CodexControllerSessionAdapter(
+            rpc: rpc,
+            store: ControllerThreadStoreStub(),
+            cwd: "/Users/test/Work"
+        )
+        let controller = try await session.ensureControllerThread(
+            configuration: .default
+        )
+        let stream = try await session.submitUserText(
+            "Hello",
+            to: controller
+        )
+        var iterator = stream.makeAsyncIterator()
+
+        await rpc.emit(agentMessageStarted(
+            id: "commentary-message",
+            phase: "commentary"
+        ))
+        await rpc.emit(agentMessageDelta(
+            id: "commentary-message",
+            text: "I am checking the operating guidance."
+        ))
+        await rpc.emit(agentMessageStarted(
+            id: "final-message",
+            phase: "final_answer"
+        ))
+        await rpc.emit(agentMessageDelta(
+            id: "final-message",
+            text: "Hey — I’m Relay."
+        ))
+
+        #expect(
+            try await iterator.next()
+                == .textDelta("Hey — I’m Relay.")
+        )
+
+        await rpc.emit(.notification(
+            method: "turn/completed",
+            params: .object([
+                "threadId": .string("controller-1"),
+                "turn": .object([
+                    "id": .string("turn-1"),
+                    "status": .string("completed"),
+                    "items": .array([
+                        .object([
+                            "id": .string("commentary-message"),
+                            "type": .string("agentMessage"),
+                            "phase": .string("commentary"),
+                            "text": .string(
+                                "I am checking the operating guidance."
+                            ),
+                        ]),
+                        .object([
+                            "id": .string("final-message"),
+                            "type": .string("agentMessage"),
+                            "phase": .string("final_answer"),
+                            "text": .string("Hey — I’m Relay."),
+                        ]),
+                    ]),
+                ]),
+            ])
+        ))
+
+        #expect(
+            try await iterator.next()
+                == .finalText("Hey — I’m Relay.")
+        )
         #expect(try await iterator.next() == nil)
     }
 
@@ -165,6 +249,7 @@ struct CodexControllerSessionAdapterTests {
         #expect(resumeParams["sandbox"] == .string("read-only"))
         #expect(resumeParams["excludeTurns"] == .bool(true))
         #expect(resumeParams["cwd"] == .string("/Users/test/Work"))
+        #expect(resumeParams["model"] == .string("gpt-5.6-luna"))
         #expect(
             resumeParams["developerInstructions"]?.stringValue
                 == RelayControllerInstructions.developer
@@ -386,6 +471,40 @@ struct CodexControllerSessionAdapterTests {
         #expect(await broker.interaction(threadID: "worker") != nil)
         #expect(await broker.interaction(threadID: "controller-1") == nil)
     }
+}
+
+private func agentMessageStarted(
+    id: String,
+    phase: String
+) -> CodexServerEvent {
+    .notification(
+        method: "item/started",
+        params: .object([
+            "threadId": .string("controller-1"),
+            "turnId": .string("turn-1"),
+            "item": .object([
+                "id": .string(id),
+                "type": .string("agentMessage"),
+                "phase": .string(phase),
+                "text": .string(""),
+            ]),
+        ])
+    )
+}
+
+private func agentMessageDelta(
+    id: String,
+    text: String
+) -> CodexServerEvent {
+    .notification(
+        method: "item/agentMessage/delta",
+        params: .object([
+            "threadId": .string("controller-1"),
+            "turnId": .string("turn-1"),
+            "itemId": .string(id),
+            "delta": .string(text),
+        ])
+    )
 }
 
 private actor ControllerThreadStoreStub: RelayControllerThreadStoring {
