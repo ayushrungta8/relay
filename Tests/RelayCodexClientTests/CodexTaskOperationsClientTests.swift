@@ -123,10 +123,41 @@ struct CodexTaskOperationsClientTests {
                 == "I found the race and am verifying the fix."
         )
     }
+
+    @Test
+    func unknownTurnStatusDoesNotBreakReadSendOrInterrupt() async throws {
+        let rpc = TaskOperationsFixtureRPC(includesUnknownTurnStatus: true)
+        let service = CodexTaskOperationsClient(rpc: rpc)
+
+        let runtime = try await service.getTask(id: "active-worker")
+        let launch = try await service.sendToTask(
+            id: "active-worker",
+            prompt: "Continue"
+        )
+        try await service.interruptTask(id: "active-worker")
+
+        #expect(runtime.activeTurnID == "turn-active")
+        #expect(launch.turnID == "turn-active")
+        #expect(
+            await rpc.recordedMethods()
+                == [
+                    "thread/read",
+                    "thread/resume",
+                    "turn/steer",
+                    "thread/resume",
+                    "turn/interrupt",
+                ]
+        )
+    }
 }
 
 private actor TaskOperationsFixtureRPC: CodexRPCRequesting {
     private var requests: [(method: String, params: JSONValue)] = []
+    private let includesUnknownTurnStatus: Bool
+
+    init(includesUnknownTurnStatus: Bool = false) {
+        self.includesUnknownTurnStatus = includesUnknownTurnStatus
+    }
 
     func requestJSON(
         method: String,
@@ -138,11 +169,19 @@ private actor TaskOperationsFixtureRPC: CodexRPCRequesting {
         switch method {
         case "thread/list":
             return .object([
-                "data": .array([Self.thread(id: "worker-1", active: false)]),
+                "data": .array([Self.thread(
+                    id: "worker-1",
+                    active: false,
+                    includesUnknownTurnStatus: includesUnknownTurnStatus
+                )]),
             ])
         case "thread/start":
             return .object([
-                "thread": Self.thread(id: "worker-1", active: false),
+                "thread": Self.thread(
+                    id: "worker-1",
+                    active: false,
+                    includesUnknownTurnStatus: includesUnknownTurnStatus
+                ),
             ])
         case "turn/start":
             return .object([
@@ -153,14 +192,19 @@ private actor TaskOperationsFixtureRPC: CodexRPCRequesting {
             ])
         case "thread/read":
             return .object([
-                "thread": Self.thread(id: "active-worker", active: true),
+                "thread": Self.thread(
+                    id: "active-worker",
+                    active: true,
+                    includesUnknownTurnStatus: includesUnknownTurnStatus
+                ),
             ])
         case "thread/resume":
             let id = params["threadId"]?.stringValue ?? "active-worker"
             return .object([
                 "thread": Self.thread(
                     id: id,
-                    active: id == "active-worker"
+                    active: id == "active-worker",
+                    includesUnknownTurnStatus: includesUnknownTurnStatus
                 ),
             ])
         case "turn/steer":
@@ -189,8 +233,35 @@ private actor TaskOperationsFixtureRPC: CodexRPCRequesting {
             .stringValue
     }
 
-    private static func thread(id: String, active: Bool) -> JSONValue {
-        .object([
+    private static func thread(
+        id: String,
+        active: Bool,
+        includesUnknownTurnStatus: Bool
+    ) -> JSONValue {
+        var turns: [JSONValue] = []
+        if includesUnknownTurnStatus {
+            turns.append(.object([
+                "id": .string("turn-future"),
+                "status": .string("pausedForReview"),
+            ]))
+        }
+        if active {
+            turns.append(.object([
+                "id": .string("turn-active"),
+                "status": .string("inProgress"),
+                "items": .array([
+                    .object([
+                        "id": .string("message-1"),
+                        "type": .string("agentMessage"),
+                        "phase": .string("commentary"),
+                        "text": .string(
+                            "I found the race and am verifying the fix."
+                        ),
+                    ]),
+                ]),
+            ]))
+        }
+        return .object([
             "id": .string(id),
             "name": .string("Review recent agent changes"),
             "preview": .string("codex://threads/worker-1"),
@@ -199,24 +270,7 @@ private actor TaskOperationsFixtureRPC: CodexRPCRequesting {
             "status": .object([
                 "type": .string(active ? "active" : "idle"),
             ]),
-        "turns": active
-                ? .array([
-                    .object([
-                        "id": .string("turn-active"),
-                        "status": .string("inProgress"),
-                        "items": .array([
-                            .object([
-                                "id": .string("message-1"),
-                                "type": .string("agentMessage"),
-                                "phase": .string("commentary"),
-                                "text": .string(
-                                    "I found the race and am verifying the fix."
-                                ),
-                            ]),
-                        ]),
-                    ]),
-                ])
-                : .array([]),
+            "turns": .array(turns),
         ])
     }
 }

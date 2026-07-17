@@ -22,6 +22,7 @@ final class RelayAppModel {
     private var runtime: RelayAppRuntime?
     private var pendingInteractionTask: Task<Void, Never>?
     private var voiceAwaitingAnswer = false
+    private let injectedActivityStore: RelayActivityStore?
 
     private var loadedThreads: [CodexThread] = []
     private(set) var state: State = .idle
@@ -31,18 +32,21 @@ final class RelayAppModel {
     private(set) var latestResponse: String?
     private var observedPendingInteractions: [RelayPendingInteraction] = []
     private var resolvingInteractionsByID:
-        [String: RelayPendingInteraction] = [:]
+        [String: RetainedResolvingInteraction] = [:]
 
     var pendingInteractions: [RelayPendingInteraction] {
         let observedIDs = Set(observedPendingInteractions.map(\.id))
         let retained = resolvingInteractionsByID.values.filter {
-            !observedIDs.contains($0.id) && taskStillNeedsInput($0.threadID)
-        }
+            !observedIDs.contains($0.interaction.id)
+                && authoritativeInputState(
+                    for: $0.interaction.threadID
+                ) != .cleared
+        }.map(\.interaction)
         return observedPendingInteractions + retained.sorted { $0.id < $1.id }
     }
 
     var activityStore: RelayActivityStore? {
-        runtime?.activityStore
+        runtime?.activityStore ?? injectedActivityStore
     }
 
     var threads: [CodexThread] {
@@ -68,11 +72,14 @@ final class RelayAppModel {
         providerFactory: (@Sendable
             () -> any CodexThreadProviding)? = nil,
         commandHandler: (any RelayCommandHandling)? = nil,
-        pendingInteractionBroker: RelayPendingInteractionBroker? = nil
+        pendingInteractionBroker: RelayPendingInteractionBroker? = nil,
+        activityStore: RelayActivityStore? = nil
     ) {
         self.providerFactory = providerFactory
         self.commandHandler = commandHandler
         self.pendingInteractionBroker = pendingInteractionBroker
+        injectedActivityStore = activityStore
+        observeActivityStore(activityStore)
     }
 
     func start() async {
@@ -92,6 +99,7 @@ final class RelayAppModel {
             }
         )
         self.runtime = runtime
+        observeActivityStore(runtime.activityStore)
         commandHandler = runtime.commandHandler
         pendingInteractionBroker = runtime.pendingInteractionBroker
         await startPendingInteractionObservation(
@@ -319,18 +327,7 @@ final class RelayAppModel {
         pendingInteractionTask = Task { [weak self] in
             for await interactions in updates {
                 guard let self, !Task.isCancelled else { return }
-                let newIDs = Set(interactions.map(\.id))
-                for interaction in observedPendingInteractions
-                where interaction.state == .resolving
-                    && !newIDs.contains(interaction.id) {
-                    resolvingInteractionsByID[interaction.id] = interaction
-                }
-                for interaction in interactions {
-                    resolvingInteractionsByID.removeValue(
-                        forKey: interaction.id
-                    )
-                }
-                observedPendingInteractions = interactions
+                receivePendingInteractions(interactions)
             }
         }
         do {
@@ -355,10 +352,51 @@ final class RelayAppModel {
         return lhs.updatedAt > rhs.updatedAt
     }
 
-    private func taskStillNeedsInput(_ threadID: String) -> Bool {
-        activityStore?.attentionTasks.contains {
-            $0.id == threadID && $0.attentionState == .needsInput
-        } == true
+    func receivePendingInteractions(
+        _ interactions: [RelayPendingInteraction]
+    ) {
+        let newIDs = Set(interactions.map(\.id))
+        for interaction in observedPendingInteractions
+        where interaction.state == .resolving
+            && !newIDs.contains(interaction.id) {
+            resolvingInteractionsByID[interaction.id] =
+                RetainedResolvingInteraction(interaction: interaction)
+        }
+        for interaction in interactions {
+            resolvingInteractionsByID.removeValue(forKey: interaction.id)
+        }
+        observedPendingInteractions = interactions
+        reconcileResolvingInteractions()
+    }
+
+    private func reconcileResolvingInteractions() {
+        let clearedIDs = resolvingInteractionsByID.compactMap {
+            id, retained in
+            authoritativeInputState(for: retained.interaction.threadID)
+                == .cleared ? id : nil
+        }
+        for id in clearedIDs {
+            resolvingInteractionsByID.removeValue(forKey: id)
+        }
+    }
+
+    private func authoritativeInputState(
+        for threadID: String
+    ) -> AuthoritativeInputState {
+        guard let activityStore else { return .unknown }
+        let tasks = activityStore.attentionTasks
+            + activityStore.runningTasks
+            + activityStore.recentTasks
+        if let task = tasks.first(where: { $0.id == threadID }) {
+            return task.attentionState == .needsInput ? .waiting : .cleared
+        }
+        return activityStore.lastUpdatedAt == nil ? .unknown : .cleared
+    }
+
+    private func observeActivityStore(_ store: RelayActivityStore?) {
+        store?.activityPublished = { [weak self] in
+            self?.reconcileResolvingInteractions()
+        }
     }
 
     private func receiveAnswerUpdate(_ answer: String) {
@@ -367,6 +405,18 @@ final class RelayAppModel {
 
     func reportPanelShortcutFailure(_ message: String) {
         composerPhase = .failed(message)
+    }
+}
+
+private extension RelayAppModel {
+    struct RetainedResolvingInteraction {
+        let interaction: RelayPendingInteraction
+    }
+
+    enum AuthoritativeInputState: Equatable {
+        case waiting
+        case cleared
+        case unknown
     }
 }
 

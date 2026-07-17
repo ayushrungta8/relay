@@ -95,6 +95,12 @@ struct RelayNotchRootView: View {
             _, trigger in
             priorityActivityChanged(trigger)
         }
+        .onChange(of: draftOwners, initial: true) { _, owners in
+            drafts.reconcile(
+                liveThreadIDs: owners.threadIDs,
+                liveInteractionIDs: owners.interactionIDs
+            )
+        }
     }
 
     private var contentAnimation: Animation {
@@ -130,6 +136,21 @@ struct RelayNotchRootView: View {
 
     private func reportExpandedHeight(_ height: Double) {
         reportContentHeight(.expanded, height)
+    }
+
+    private var draftOwners: RelayDraftOwners {
+        let threadIDs = Set(activity.orderedTasks.map(\.id))
+        let interactionIDs = Set(
+            pendingInteractions.compactMap { interaction in
+                threadIDs.contains(interaction.threadID)
+                    ? interaction.id
+                    : nil
+            }
+        )
+        return RelayDraftOwners(
+            threadIDs: threadIDs,
+            interactionIDs: interactionIDs
+        )
     }
 
 }

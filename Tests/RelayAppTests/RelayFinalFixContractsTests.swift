@@ -104,6 +104,53 @@ struct RelayFinalFixContractsTests {
     }
 
     @Test
+    func panelToggleRefusesToDismissUntilDirtyDraftIsCancelled() {
+        let state = RelayNotchPanelState()
+        state.presentation = .expanded
+        state.drafts.setPendingAnswer(
+            "Pending",
+            questionID: "choice",
+            interactionID: "interaction"
+        )
+
+        #expect(state.toggleTarget() == nil)
+
+        state.drafts.discardPendingAnswers(interactionID: "interaction")
+
+        #expect(state.toggleTarget() == .hidden)
+    }
+
+    @Test
+    func disappearingDraftOwnersRemainExplicitlyCancellable() throws {
+        let store = RelayPanelDraftStore()
+        store.setPendingAnswer(
+            "Keep this answer",
+            questionID: "choice",
+            interactionID: "gone-interaction"
+        )
+        store.beginFollowUp(threadID: "gone-thread")
+        store.setFollowUp("Keep this follow-up", threadID: "gone-thread")
+
+        store.reconcile(
+            liveThreadIDs: [],
+            liveInteractionIDs: []
+        )
+
+        #expect(
+            Set(store.orphanedDrafts.map(\.ownerID))
+                == ["gone-interaction", "gone-thread"]
+        )
+        #expect(!store.canDismiss)
+
+        for orphan in store.orphanedDrafts {
+            store.discard(orphan)
+        }
+
+        #expect(store.orphanedDrafts.isEmpty)
+        #expect(store.canDismiss)
+    }
+
+    @Test
     func automaticPeekCandidateUsesOnlyPriorityAttention() {
         let failed = RelayTaskActivity(
             thread: CodexThread(
@@ -161,6 +208,28 @@ struct RelayFinalFixContractsTests {
             await Task.yield()
         }
         #expect(presentations == [.peek, .hidden])
+    }
+
+    @Test
+    func identicalAttentionTriggerPeeksAgainAfterClearedInterval() {
+        var peekCount = 0
+        let coordinator = RelayPanelPresentationCoordinator(
+            sleep: { _ in throw CancellationError() },
+            presentPeek: { peekCount += 1 },
+            dismissPeek: {}
+        )
+        let trigger = RelayAutomaticPeekTrigger(
+            threadID: "worker",
+            state: .needsInput,
+            updatedAt: 1,
+            hasUnreadCompletion: false
+        )
+
+        coordinator.observe(trigger)
+        coordinator.observe(nil)
+        coordinator.observe(trigger)
+
+        #expect(peekCount == 2)
     }
 }
 

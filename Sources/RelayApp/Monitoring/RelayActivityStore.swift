@@ -33,6 +33,8 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private var isRefreshing = false
     private var refreshRequested = false
     private var reconnectAttempt = 0
+    @ObservationIgnored
+    var activityPublished: (@MainActor () -> Void)?
 
     private(set) var attentionTasks: [RelayTaskActivity] = []
     private(set) var runningTasks: [RelayTaskActivity] = []
@@ -84,22 +86,26 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         } while refreshRequested
     }
 
+    func retryConnection() async {
+        cancelReconnect()
+        await connectAndRefresh()
+    }
+
     private func performRefresh() async {
         let eventVersion = await state.beginSnapshot()
         do {
             let snapshot = try await monitoring.snapshot(limit: 25)
             let controllerThreadID =
                 await controllerThreadStore?.loadThreadID()
-            publish(
-                await state.merge(
-                    snapshot: snapshot,
-                    controllerThreadID: controllerThreadID,
-                    replayingEventsAfter: eventVersion
-                )
+            let values = await state.merge(
+                snapshot: snapshot,
+                controllerThreadID: controllerThreadID,
+                replayingEventsAfter: eventVersion
             )
+            lastUpdatedAt = .now
+            publish(values)
             cancelReconnect()
             reconnectAttempt = 0
-            lastUpdatedAt = .now
             connectionState = .connected(lastUpdatedAt: lastUpdatedAt ?? .now)
         } catch {
             connectionState = .offline(
@@ -296,6 +302,7 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         tokenUsageByThreadID = values.tokenUsageByThreadID
         lastSelectedThreadID = values.lastSelectedThreadID
         selectedThreadID = values.selectedThreadID
+        activityPublished?()
     }
 
     private static func title(for task: RelayTaskActivity) -> String {

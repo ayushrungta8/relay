@@ -80,7 +80,7 @@ struct RelayNotchPanelHost: View {
     }
 
     private func retryConnection() {
-        Task { await model.activityStore?.refresh() }
+        Task { await model.activityStore?.retryConnection() }
     }
 
     private func submitPendingAnswers(

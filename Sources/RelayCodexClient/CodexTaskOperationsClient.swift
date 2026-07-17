@@ -372,9 +372,21 @@ private struct TurnErrorRecord: Decodable {
     let message: String
 }
 
-private enum TurnStatus: String, Decodable {
+private enum TurnStatus: Decodable, Equatable {
     case completed
     case interrupted
     case failed
     case inProgress
+    case unknown(String)
+
+    init(from decoder: any Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = switch value {
+        case "completed": .completed
+        case "interrupted": .interrupted
+        case "failed": .failed
+        case "inProgress": .inProgress
+        default: .unknown(value)
+        }
+    }
 }

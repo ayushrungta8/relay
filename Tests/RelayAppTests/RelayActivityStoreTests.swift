@@ -216,6 +216,36 @@ struct RelayActivityStoreTests {
 
     @MainActor
     @Test
+    func retryConnectionBypassesDelayedReconnectAndRecoversTransport() async {
+        let monitoring = MonitoringStub(
+            results: [.success(.init(tasks: [], usage: nil))]
+        )
+        let connector = FailingThenSuccessfulConnector()
+        let sleepProbe = ReconnectSleepProbe()
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: { try await connector.connect() },
+            sleep: { duration in
+                try await sleepProbe.sleep(for: duration)
+            }
+        )
+
+        await store.start()
+        for _ in 0..<100 where !(await sleepProbe.hasStartedReconnect()) {
+            await Task.yield()
+        }
+
+        await store.retryConnection()
+
+        #expect(await connector.attemptCount() == 2)
+        #expect(await sleepProbe.wasReconnectCancelled())
+        #expect(await monitoring.snapshotCallCount() == 1)
+        #expect(store.connectionState.isConnected)
+    }
+
+    @MainActor
+    @Test
     func coalescesOverlappingRefreshAndImmediatelyReruns() async {
         let monitoring = SuspendedMonitoringStub()
         let store = RelayActivityStore(
@@ -450,6 +480,19 @@ private actor ReconnectSleepProbe {
         reconnectContinuation?.resume(throwing: CancellationError())
         reconnectContinuation = nil
     }
+}
+
+private actor FailingThenSuccessfulConnector {
+    private var attempts = 0
+
+    func connect() throws {
+        attempts += 1
+        if attempts == 1 {
+            throw StoreFixtureError.offline
+        }
+    }
+
+    func attemptCount() -> Int { attempts }
 }
 
 private enum StoreFixtureError: Error {

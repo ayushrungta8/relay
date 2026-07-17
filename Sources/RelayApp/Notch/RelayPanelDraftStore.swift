@@ -5,6 +5,7 @@ import Observation
 final class RelayPanelDraftStore {
     private var pendingDrafts: [String: RelayPendingAnswerDraft] = [:]
     private var followUpDrafts: [String: RelayTaskCardFollowUpState] = [:]
+    private(set) var orphanedDrafts: [RelayOrphanedDraft] = []
 
     var hasDirtyDraft: Bool {
         pendingDrafts.values.contains(where: \.isDirty)
@@ -30,6 +31,9 @@ final class RelayPanelDraftStore {
 
     func discardPendingAnswers(interactionID: String) {
         pendingDrafts.removeValue(forKey: interactionID)
+        orphanedDrafts.removeAll {
+            $0.kind == .pendingAnswer && $0.ownerID == interactionID
+        }
     }
 
     func followUp(threadID: String) -> RelayTaskCardFollowUpState {
@@ -62,5 +66,52 @@ final class RelayPanelDraftStore {
 
     func discardFollowUp(threadID: String) {
         followUpDrafts.removeValue(forKey: threadID)
+        orphanedDrafts.removeAll {
+            $0.kind == .followUp && $0.ownerID == threadID
+        }
+    }
+
+    func reconcile(
+        liveThreadIDs: Set<String>,
+        liveInteractionIDs: Set<String>
+    ) {
+        pendingDrafts = pendingDrafts.filter { interactionID, draft in
+            liveInteractionIDs.contains(interactionID) || draft.isDirty
+        }
+        followUpDrafts = followUpDrafts.filter { threadID, draft in
+            liveThreadIDs.contains(threadID) || draft.isDirty
+        }
+
+        let pending: [RelayOrphanedDraft] = pendingDrafts.compactMap {
+            interactionID, draft in
+            guard draft.isDirty,
+                  !liveInteractionIDs.contains(interactionID) else {
+                return nil
+            }
+            return RelayOrphanedDraft(
+                kind: .pendingAnswer,
+                ownerID: interactionID
+            )
+        }
+        let followUps: [RelayOrphanedDraft] = followUpDrafts.compactMap {
+            threadID, draft in
+            guard draft.isDirty, !liveThreadIDs.contains(threadID) else {
+                return nil
+            }
+            return RelayOrphanedDraft(
+                kind: .followUp,
+                ownerID: threadID
+            )
+        }
+        orphanedDrafts = (pending + followUps).sorted { $0.id < $1.id }
+    }
+
+    func discard(_ orphan: RelayOrphanedDraft) {
+        switch orphan.kind {
+        case .pendingAnswer:
+            discardPendingAnswers(interactionID: orphan.ownerID)
+        case .followUp:
+            discardFollowUp(threadID: orphan.ownerID)
+        }
     }
 }

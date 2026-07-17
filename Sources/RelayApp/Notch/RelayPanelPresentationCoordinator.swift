@@ -21,7 +21,11 @@ final class RelayPanelPresentationCoordinator {
     }
 
     func observe(_ trigger: RelayAutomaticPeekTrigger?) {
-        guard let trigger, trigger != lastTrigger else { return }
+        guard let trigger else {
+            lastTrigger = nil
+            return
+        }
+        guard trigger != lastTrigger else { return }
         lastTrigger = trigger
         presentPeek()
         dismissalTask?.cancel()

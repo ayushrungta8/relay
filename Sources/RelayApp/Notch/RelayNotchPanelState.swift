@@ -18,7 +18,14 @@ final class RelayNotchPanelState {
     func requestPresentation(
         _ presentation: RelayPanelPresentation
     ) {
+        guard presentation != .hidden || drafts.canDismiss else { return }
         presentationRequestHandler?(presentation)
+    }
+
+    func toggleTarget() -> RelayPanelPresentation? {
+        let target = presentation.toggled
+        guard target != .hidden || drafts.canDismiss else { return nil }
+        return target
     }
 
     func requestContentHeight(

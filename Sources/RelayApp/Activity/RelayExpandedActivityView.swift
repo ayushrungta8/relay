@@ -69,6 +69,10 @@ struct RelayExpandedActivityView: View {
                         )
                     }
 
+                    if !drafts.orphanedDrafts.isEmpty {
+                        RelayOrphanedDraftsView(drafts: drafts)
+                    }
+
                     if activity.orderedTasks.isEmpty {
                         ContentUnavailableView {
                             Label(

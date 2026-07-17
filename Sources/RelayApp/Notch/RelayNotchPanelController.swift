@@ -135,7 +135,7 @@ final class RelayNotchPanelController {
 
     func toggle(on screen: NSScreen? = nil) {
         presentationCoordinator.cancelAutomaticDismissal()
-        let target = presentation.toggled
+        guard let target = presentationState.toggleTarget() else { return }
         guard target != .hidden else {
             dismiss()
             return
@@ -144,6 +144,7 @@ final class RelayNotchPanelController {
     }
 
     func dismiss() {
+        guard presentationState.drafts.canDismiss else { return }
         presentationState.presentation = .hidden
         if activePanel === nonactivatingPanel {
             nonactivatingPanel.updatePresentation(.hidden)

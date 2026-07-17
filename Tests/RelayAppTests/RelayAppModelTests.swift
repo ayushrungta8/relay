@@ -157,6 +157,96 @@ struct RelayAppModelTests {
         await submission.value
         #expect(model.latestResponse == "Partial answer completed.")
     }
+
+    @MainActor
+    @Test
+    func clearedWaitingStatePermanentlyPrunesResolvingOwnership() async {
+        let monitoring = AppModelMonitoringStub(
+            snapshots: [
+                .init(tasks: [waitingActivity()], usage: nil),
+                .init(tasks: [idleActivity()], usage: nil),
+                .init(tasks: [waitingActivity()], usage: nil),
+            ]
+        )
+        let activityStore = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: AppModelTaskOperationsStub(),
+            connect: {}
+        )
+        await activityStore.refresh()
+        let model = RelayAppModel(activityStore: activityStore)
+        let resolving = RelayPendingInteraction(
+            id: "resolved-request",
+            threadID: "worker",
+            turnID: "turn",
+            kind: .approval(.init(
+                title: "Approve?",
+                canApprove: true,
+                canDecline: true
+            )),
+            state: .resolving
+        )
+
+        model.receivePendingInteractions([resolving])
+        model.receivePendingInteractions([])
+        #expect(model.pendingInteractions.map(\.id) == ["resolved-request"])
+
+        await activityStore.refresh()
+        #expect(model.pendingInteractions.isEmpty)
+
+        await activityStore.refresh()
+        #expect(model.pendingInteractions.isEmpty)
+    }
+}
+
+private actor AppModelMonitoringStub: RelayActivityMonitoring {
+    nonisolated let stream = AsyncStream<RelayMonitoringEvent> { _ in }
+    private var snapshots: [RelayMonitoringSnapshot]
+
+    init(snapshots: [RelayMonitoringSnapshot]) {
+        self.snapshots = snapshots
+    }
+
+    nonisolated func events() -> AsyncStream<RelayMonitoringEvent> { stream }
+
+    func snapshot(limit: Int) throws -> RelayMonitoringSnapshot {
+        snapshots.removeFirst()
+    }
+}
+
+private actor AppModelTaskOperationsStub: CodexTaskOperating {
+    func sendToTask(id: String, prompt: String) async throws -> CodexTaskLaunch {
+        fatalError("Not used")
+    }
+
+    func interruptTask(id: String) async throws {
+        fatalError("Not used")
+    }
+}
+
+private func waitingActivity() -> RelayTaskActivity {
+    RelayTaskActivity(
+        thread: CodexThread(
+            id: "worker",
+            preview: "Worker",
+            cwd: "/tmp",
+            updatedAt: 1,
+            status: .active,
+            activeFlags: [.waitingOnUserInput]
+        )
+    )
+}
+
+private func idleActivity() -> RelayTaskActivity {
+    RelayTaskActivity(
+        thread: CodexThread(
+            id: "worker",
+            preview: "Worker",
+            cwd: "/tmp",
+            updatedAt: 2,
+            status: .idle
+        )
+    )
 }
 
 private actor BlockingStreamingCommandHandler: RelayCommandHandling {
