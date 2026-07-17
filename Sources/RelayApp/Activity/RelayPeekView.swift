@@ -1,25 +1,19 @@
-import RelayCore
 import SwiftUI
 
 struct RelayPeekView: View {
-    let copy: String
-    let state: RelayTaskAttentionState
+    let activity: RelayActivityPresentation
+    let safeArea: RelayNotchSafeArea
+    let expand: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            RelayStatusSymbol(state: state)
-                .labelStyle(.iconOnly)
-
-            Text(copy)
-                .font(.callout)
-                .bold()
-                .foregroundStyle(RelayPalette.primaryText)
-                .lineLimit(1)
+        Button(action: expand) {
+            RelayCompactSummaryLabel(
+                activity: activity,
+                safeArea: safeArea
+            )
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(copy)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open Relay activity center")
+        .accessibilityValue(activity.compactPrimaryCopy)
     }
 }

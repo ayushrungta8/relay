@@ -68,6 +68,34 @@ struct RelayAccessibilityContractTests {
 
     @MainActor
     @Test
+    func reduceMotionDisablesLoopingStatusMotion() {
+        #expect(
+            RelayAccessibilityContract.allowsLoopingStatusMotion(
+                reduceMotion: false
+            )
+        )
+        #expect(
+            !RelayAccessibilityContract.allowsLoopingStatusMotion(
+                reduceMotion: true
+            )
+        )
+    }
+
+    @MainActor
+    @Test
+    func notchDropShapeKeepsTopFlushAndRoundsOnlyTheBottom() {
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 42)
+        let path = RelayNotchDropShape(bottomRadius: 15).path(in: rect)
+
+        #expect(path.contains(CGPoint(x: 1, y: 1)))
+        #expect(path.contains(CGPoint(x: 399, y: 1)))
+        #expect(!path.contains(CGPoint(x: 1, y: 41)))
+        #expect(!path.contains(CGPoint(x: 399, y: 41)))
+        #expect(path.contains(CGPoint(x: 200, y: 41)))
+    }
+
+    @MainActor
+    @Test
     func everyStatusHasTextAndAShapeCueInsteadOfColorAlone() {
         let statuses = RelayAccessibilityContract.attentionStates.map {
             RelayAccessibilityContract.status(for: $0)

@@ -10,6 +10,33 @@ struct RelayActivityPresentation {
         attentionTasks + runningTasks + recentTasks
     }
 
+    var compactPrimaryCopy: String {
+        if attentionTasks.isEmpty == false {
+            return attentionTasks.count == 1
+                ? "1 needs you"
+                : "\(attentionTasks.count) need you"
+        }
+        if runningTasks.isEmpty == false {
+            return runningTasks.count == 1
+                ? "1 running"
+                : "\(runningTasks.count) running"
+        }
+        return "All clear"
+    }
+
+    var compactSecondaryCopy: String? {
+        guard attentionTasks.isEmpty == false,
+              runningTasks.isEmpty == false
+        else { return nil }
+        return runningTasks.count == 1
+            ? "1 running"
+            : "\(runningTasks.count) running"
+    }
+
+    var compactState: RelayTaskAttentionState {
+        orderedTasks.first?.attentionState ?? .idle
+    }
+
     var automaticPeekTrigger: RelayAutomaticPeekTrigger? {
         guard let task = attentionTasks.first else { return nil }
         return RelayAutomaticPeekTrigger(

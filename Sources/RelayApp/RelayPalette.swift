@@ -7,11 +7,27 @@ enum RelayPalette {
         blue: 0.30
     )
 
-    static let hoverSurface = accent.opacity(0.08)
-    static let shell = Color.black
-    static let elevatedSurface = Color.white.opacity(0.075)
-    static let elevatedHover = Color.white.opacity(0.12)
-    static let hairline = Color.white.opacity(0.12)
+    static let hoverSurface = Color(
+        red: 0.055,
+        green: 0.085,
+        blue: 0.066
+    )
+    static let shell = Color(
+        red: 0.012,
+        green: 0.015,
+        blue: 0.014
+    )
+    static let elevatedSurface = Color(
+        red: 0.035,
+        green: 0.041,
+        blue: 0.038
+    )
+    static let elevatedHover = Color(
+        red: 0.065,
+        green: 0.075,
+        blue: 0.070
+    )
+    static let hairline = Color.white.opacity(0.10)
     static let primaryText = Color.white
     static let secondaryText = Color.white.opacity(0.72)
     static let tertiaryText = Color.white.opacity(0.54)

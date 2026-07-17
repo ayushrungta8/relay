@@ -22,7 +22,7 @@ struct RelayNotchPanelHost: View {
             composerPhase: model.composerPhase,
             latestResponse: model.latestResponse,
             connection: connectionPresentation,
-            topInset: state.notchSafeArea.topInset,
+            safeArea: state.notchSafeArea,
             submitCommand: submitCommand,
             retryConnection: retryConnection,
             submitPendingAnswers: submitPendingAnswers,

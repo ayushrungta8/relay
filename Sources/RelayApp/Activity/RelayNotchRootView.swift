@@ -13,7 +13,7 @@ struct RelayNotchRootView: View {
     let composerPhase: RelayComposerPhase
     let latestResponse: String?
     let connection: RelayConnectionPresentation?
-    let topInset: Double
+    let safeArea: RelayNotchSafeArea
     let submitCommand: () -> Void
     let retryConnection: () -> Void
     let submitPendingAnswers:
@@ -27,12 +27,7 @@ struct RelayNotchRootView: View {
 
     var body: some View {
         ZStack {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 2,
-                bottomLeadingRadius: 16,
-                bottomTrailingRadius: 16,
-                topTrailingRadius: 2
-            )
+            notchShape
             .fill(RelayPalette.shell)
 
             Group {
@@ -41,17 +36,14 @@ struct RelayNotchRootView: View {
                     EmptyView()
                 case .peek:
                     RelayPeekView(
-                        copy: activity.peekCopy,
-                        state: activity.orderedTasks.first?.attentionState
-                            ?? .idle
+                        activity: activity,
+                        safeArea: safeArea,
+                        expand: expand
                     )
                 case .compact:
                     RelayCompactActivityView(
                         activity: activity,
-                        capacity: capacity,
-                        tokenUsageByThreadID: tokenUsageByThreadID,
-                        actions: actions,
-                        drafts: drafts,
+                        safeArea: safeArea,
                         expand: expand
                     )
                 case .expanded:
@@ -72,11 +64,13 @@ struct RelayNotchRootView: View {
                         submitPendingDecision: submitPendingDecision,
                         collapse: collapse
                     )
+                    .padding(.top, safeArea.topInset)
                 }
             }
-            .padding(.top, topInset)
             .transition(contentTransition)
         }
+        .clipShape(notchShape)
+        .contentShape(notchShape)
         .tint(RelayPalette.accent)
         .animation(contentAnimation, value: presentation)
         .onChange(of: activity.automaticPeekTrigger, initial: true) {
@@ -98,7 +92,7 @@ struct RelayNotchRootView: View {
         case .crossfade:
             .linear(duration: 0.12)
         case .anchoredMovement:
-            .easeOut(duration: 0.2)
+            .timingCurve(0.22, 1, 0.36, 1, duration: 0.22)
         }
     }
 
@@ -109,8 +103,16 @@ struct RelayNotchRootView: View {
         case .crossfade:
             .opacity
         case .anchoredMovement:
-            .opacity.combined(with: .offset(y: -8))
+            .opacity.combined(
+                with: .scale(scale: 0.985, anchor: .top)
+            )
         }
+    }
+
+    private var notchShape: RelayNotchDropShape {
+        RelayNotchDropShape(
+            bottomRadius: presentation == .expanded ? 28 : 15
+        )
     }
 
     private func expand() {

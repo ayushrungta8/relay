@@ -7,6 +7,46 @@ import Testing
 @MainActor
 struct RelayActivityPresentationTests {
     @Test
+    func compactSummaryPrioritizesAttentionAndRetainsRunningCount() {
+        let presentation = RelayActivityPresentation(
+            tasks: [
+                activity(
+                    id: "waiting",
+                    title: "Choose a layout",
+                    updatedAt: 300,
+                    status: .active,
+                    activeFlags: [.waitingOnUserInput]
+                ),
+                activity(
+                    id: "running-one",
+                    title: "Build the tray",
+                    updatedAt: 200,
+                    status: .active
+                ),
+                activity(
+                    id: "running-two",
+                    title: "Polish the motion",
+                    updatedAt: 100,
+                    status: .active
+                ),
+            ]
+        )
+
+        #expect(presentation.compactPrimaryCopy == "1 needs you")
+        #expect(presentation.compactSecondaryCopy == "2 running")
+        #expect(presentation.compactState == .needsInput)
+    }
+
+    @Test
+    func compactSummaryIsAllClearWithoutActiveWork() {
+        let presentation = RelayActivityPresentation(tasks: [])
+
+        #expect(presentation.compactPrimaryCopy == "All clear")
+        #expect(presentation.compactSecondaryCopy == nil)
+        #expect(presentation.compactState == .idle)
+    }
+
+    @Test
     func peekCopySurfacesAttentionBeforeRunningWork() {
         let presentation = RelayActivityPresentation(
             tasks: [

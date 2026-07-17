@@ -83,6 +83,10 @@ enum RelayAccessibilityContract {
         reduceMotion ? .crossfade : .anchoredMovement
     }
 
+    static func allowsLoopingStatusMotion(reduceMotion: Bool) -> Bool {
+        !reduceMotion
+    }
+
     static func status(for state: RelayTaskAttentionState) -> Status {
         switch state {
         case .needsInput:
