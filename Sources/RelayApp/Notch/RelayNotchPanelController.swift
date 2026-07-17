@@ -143,7 +143,7 @@ final class RelayNotchPanelController {
     }
 
     private func configurePanel(_ panel: RelayNotchPanel) {
-        panel.level = .statusBar
+        panel.level = .screenSaver
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false

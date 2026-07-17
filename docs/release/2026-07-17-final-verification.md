@@ -319,4 +319,64 @@ direct_app_server_count=1
 app_server_pid=11818
 ```
 
+## Pointee-inspired overlay redesign verification
+
+Status: **DONE**
+
+Relay now uses controller-owned, fixed panel geometry with a dark notch-safe
+compact surface and a bounded expanded task workspace. The final native UI
+targets are 400×42 points for peek/compact and 720×470 points for expanded,
+all centered at the physical display top.
+
+Final automated verification:
+
+```text
+swift test
+Test run with 189 tests in 37 suites passed
+
+./script/build_and_run_process_test.sh
+exact-path process matching passed
+
+./script/build_and_run.sh --verify
+Relay.app: valid on disk
+Relay.app: satisfies its Designated Requirement
+```
+
+Live native QA found and fixed two AppKit placement defects that geometry-only
+tests could not expose. AppKit first constrained the proposed y=0 panel to the
+visible frame below the 30-point menu bar. The focused RED test observed the
+expanded frame change from `(920, 970, 720, 470)` to
+`(920, 940, 720, 470)`. `RelayNotchPanel` now preserves the controller-owned
+frame through `constrainFrameRect`. A second RED test proved the panel was not
+at the required overlay level; both panel types now use `.screenSaver` so the
+notch-safe header renders above the system menu bar.
+
+Fresh live WindowServer evidence after the fixes:
+
+```text
+expanded: x=920 y=0 width=720 height=470
+compact:  x=1080 y=0 width=400 height=42
+```
+
+Computer Use attached to the real signed panel and verified:
+
+- the expanded header, 232-point task rail, selected-task detail, capacity,
+  answer region, and composer are visible without clipping;
+- compact Relay is one control with an unobstructed center and no task-card
+  carousel or capacity strip;
+- task rows expose selected state, status, relative update time, and actions;
+- the panel transitions from expanded to compact without changing its top
+  anchor.
+
+The temporary launch-only QA hook used to expose the hidden menu-bar panel was
+removed before the final build. The normal signed staged app is intentionally
+left running with exactly one direct Codex app-server child:
+
+```text
+exact_app_count=1
+app_pid=63752
+direct_app_server_count=1
+app_server_pid=63758
+```
+
 The exact staged application remains running.

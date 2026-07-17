@@ -59,6 +59,30 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func notchPanelPreservesThePhysicalTopEdgeFrame() throws {
+        let screen = try #require(NSScreen.main)
+        let proposedFrame = CGRect(
+            x: screen.frame.midX - 360,
+            y: screen.frame.maxY - 470,
+            width: 720,
+            height: 470
+        )
+        let panel = RelayNotchPanel(initialPresentation: .expanded)
+
+        #expect(
+            panel.constrainFrameRect(proposedFrame, to: screen)
+                == proposedFrame
+        )
+    }
+
+    @Test
+    func notchPanelRendersAboveTheSystemMenuBar() {
+        let panel = RelayNotchPanel(initialPresentation: .expanded)
+
+        #expect(panel.level == .screenSaver)
+    }
+
+    @Test
     func globalClickCapturesTheEventsScreenLocation() throws {
         let eventLocation = CGPoint(x: -340, y: 712)
         let event = try #require(

@@ -24,6 +24,7 @@ final class RelayNotchPanel: NSPanel {
             backing: .buffered,
             defer: true
         )
+        level = .screenSaver
         hasShadow = false
     }
 
@@ -34,6 +35,16 @@ final class RelayNotchPanel: NSPanel {
 
     override var canBecomeMain: Bool {
         false
+    }
+
+    /// AppKit normally constrains panels to the visible frame below the menu
+    /// bar. Relay owns physical-screen placement so its surface can meet the
+    /// top edge and flow around the camera housing.
+    override func constrainFrameRect(
+        _ frameRect: NSRect,
+        to screen: NSScreen?
+    ) -> NSRect {
+        frameRect
     }
 
     func updatePresentation(
