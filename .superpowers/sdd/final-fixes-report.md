@@ -186,3 +186,97 @@ fix: complete Relay cross-layer review wave
 No blocking concerns. Deterministic geometry, accessibility, shortcut, and
 process contracts are covered; a physical multi-display/VoiceOver pass remains
 useful release QA but is not required to satisfy this fix contract.
+
+## Final Re-review Residual Wave
+
+Status: **DONE**
+
+Implemented every item in `final-rereview-findings.md`:
+
+- Retry now cancels delayed reconnect backoff and immediately reconnects before
+  refreshing, recovering a failed persistent transport instead of submitting a
+  snapshot request to the failed client.
+- Automatic peek identity resets when priority attention clears, so an equal
+  same-thread handoff peeks again after a running interval.
+- Resolving ownership is retained only through the original authoritative
+  waiting state. Store publications permanently prune it once that state
+  clears, including absent tasks after a successful snapshot, preventing later
+  external waiting from resurrecting ownership and bounding retained memory.
+- Menu/global toggle and every direct hidden transition honor the dirty-draft
+  guard. Draft keys reconcile against visible tasks and interactions; dirty
+  orphan drafts remain in an accessible expanded-panel surface with explicit
+  Cancel controls, while clean orphan state is pruned.
+- Task operations decode future turn-status strings losslessly while continuing
+  to detect known `inProgress` turns for read, steer, and interrupt behavior.
+
+### Residual TDD Evidence
+
+The first focused RED build exited `1` on the intentionally absent contracts:
+
+```text
+RelayActivityStore has no member 'retryConnection'
+RelayNotchPanelState has no member 'toggleTarget'
+RelayPanelDraftStore has no member 'reconcile'
+extra argument 'activityStore' in call
+```
+
+After those four contracts were GREEN, the isolated task-operations RED test
+failed at the intended decoding boundary:
+
+```text
+DecodingError.dataCorrupted
+thread.turns[0].status
+Cannot initialize TurnStatus from invalid String value pausedForReview
+```
+
+Final focused command:
+
+```text
+swift test --filter 'RelayActivityStoreTests|RelayFinalFixContractsTests|RelayAppModelTests|CodexTaskOperationsClientTests'
+```
+
+Result: `35 tests in 4 suites passed`.
+
+### Residual Full Verification
+
+Fresh commands:
+
+```text
+swift test
+swift build -c release
+./script/build_and_run_process_test.sh
+bash -n script/build_and_run.sh
+bash -n script/build_and_run_process_test.sh
+bash -n script/relay_process_helpers.sh
+git diff --check
+./script/build_and_run.sh --verify
+```
+
+Results:
+
+```text
+Test run with 170 tests in 36 suites passed after 1.736 seconds.
+Build complete! (10.46s)
+exact-path process matching passed
+Relay.app: valid on disk
+Relay.app: satisfies its Designated Requirement
+```
+
+Final staged process evidence:
+
+```text
+exact_app_count=1
+app_pid=8148
+direct_app_server_count=1
+8189 8148 /Applications/ChatGPT.app/Contents/Resources/codex app-server --stdio
+```
+
+Implementation commit:
+
+```text
+ae90fae33a54c66845c0dbbabd9b854c5777b99c
+fix: close Relay final rereview residuals
+```
+
+No blocking concerns were found. The verified staged app was intentionally left
+running with exactly one direct app-server child.
