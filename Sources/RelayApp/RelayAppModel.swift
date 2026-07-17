@@ -440,10 +440,6 @@ final class RelayAppModel {
             RelayChatMessage(role: .user, text: text)
         )
     }
-
-    func reportPanelShortcutFailure(_ message: String) {
-        composerPhase = .failed(message)
-    }
 }
 
 private extension RelayAppModel {

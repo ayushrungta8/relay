@@ -13,9 +13,6 @@ final class RelayNotchPanelController {
     private var localClickMonitor: Any?
     private var currentScreen: NSScreen?
     private var hoverCollapseTask: Task<Void, Never>?
-    private let panelShortcutMonitor = CarbonGlobalShortcutMonitor(
-        identifier: 2
-    )
     private lazy var presentationCoordinator =
         RelayPanelPresentationCoordinator(
             presentPeek: { [weak self] in
@@ -67,18 +64,6 @@ final class RelayNotchPanelController {
         configurePanel(nonactivatingPanel)
         configurePanel(interactivePanel)
         nonactivatingPanel.contentView = hostingView
-        do {
-            try panelShortcutMonitor.start(
-                shortcut: .panelToggle
-            ) { [weak self] event in
-                guard event == .pressed else { return }
-                self?.toggle()
-            }
-        } catch {
-            model.reportPanelShortcutFailure(
-                "Relay could not register its panel shortcut: \(error.localizedDescription)"
-            )
-        }
     }
 
     func present(
@@ -373,7 +358,6 @@ final class RelayNotchPanelController {
 
     isolated deinit {
         hoverCollapseTask?.cancel()
-        panelShortcutMonitor.stop()
         removeOutsideClickMonitoring()
     }
 }

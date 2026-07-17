@@ -37,10 +37,5 @@ public struct RelayGlobalShortcut:
         modifiers: [.option]
     )
 
-    public static let panelToggle = Self(
-        keyCode: 15,
-        modifiers: [.command, .shift]
-    )
-
     public static let `default` = optionSpace
 }

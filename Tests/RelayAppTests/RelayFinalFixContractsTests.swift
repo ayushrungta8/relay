@@ -177,12 +177,6 @@ struct RelayFinalFixContractsTests {
     }
 
     @Test
-    func panelShortcutDoesNotConflictWithOptionSpacePushToTalk() {
-        #expect(RelayGlobalShortcut.panelToggle != .optionSpace)
-        #expect(RelayGlobalShortcut.panelToggle.modifiers == [.command, .shift])
-    }
-
-    @Test
     func automaticPeekDismissesAfterFourSeconds() async {
         let sleeper = PeekSleeper()
         var presentations: [RelayPanelPresentation] = []
