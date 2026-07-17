@@ -83,19 +83,9 @@ struct RelayNotchRootView: View {
         .overlay {
             notchShape
                 .stroke(edgeLighting, lineWidth: 1)
-                .shadow(
-                    color: RelayPalette.edgeGlow,
-                    radius: 8,
-                    y: 3
-                )
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-        .shadow(
-            color: RelayPalette.shellShadow,
-            radius: presentation == .expanded ? 22 : 12,
-            y: presentation == .expanded ? 10 : 5
-        )
         .contentShape(notchShape)
         .tint(RelayPalette.accent)
         .animation(contentAnimation, value: presentation)
