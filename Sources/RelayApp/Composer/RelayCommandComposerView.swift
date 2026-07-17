@@ -8,10 +8,17 @@ struct RelayCommandComposerView: View {
     @State private var submissionGate = RelayCommandSubmissionGate()
 
     var body: some View {
-        VStack(alignment: .leading) {
-            HStack {
+        HStack(spacing: 8) {
+            if phase != .idle {
+                RelayComposerStatusView(phase: phase)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .frame(maxWidth: 116, alignment: .leading)
+            }
+
+            HStack(spacing: 8) {
                 TextField("Ask Relay to do something…", text: $text)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .submitLabel(.send)
                     .onSubmit(submitIfPossible)
                     .disabled(isInputDisabled)
@@ -34,16 +41,14 @@ struct RelayCommandComposerView: View {
                     modifiers: []
                 )
             }
-            .controlSize(.large)
-
-            if phase != .idle {
-                RelayComposerStatusView(phase: phase)
-                    .font(.caption)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            .padding(.leading, 11)
+            .padding(.trailing, 6)
+            .frame(height: 34)
+            .background(RelayPalette.shell, in: .rect(cornerRadius: 10))
         }
-        .padding()
+        .controlSize(.regular)
+        .padding(.horizontal, 12)
+        .background(RelayPalette.elevatedSurface)
         .onChange(of: phase) { _, newPhase in
             submissionGate.phaseDidChange(to: newPhase)
         }

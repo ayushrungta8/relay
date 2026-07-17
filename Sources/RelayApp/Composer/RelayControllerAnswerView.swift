@@ -4,20 +4,23 @@ struct RelayControllerAnswerView: View {
     let answer: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("Relay answer", systemImage: "sparkles")
-                .font(.callout)
-                .bold()
-                .foregroundStyle(RelayPalette.secondaryText)
+        ScrollView(.vertical) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Relay", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(RelayPalette.secondaryText)
 
-            Text(answer)
-                .font(.body)
-                .foregroundStyle(RelayPalette.primaryText)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(answer)
+                    .font(.caption)
+                    .foregroundStyle(RelayPalette.primaryText)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .scrollIndicators(.never)
+        .background(RelayPalette.elevatedSurface.opacity(0.82))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Relay answer: \(answer)")
     }

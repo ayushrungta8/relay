@@ -141,6 +141,10 @@ struct RelayPanelPresentationTests {
             composerPhase: .idle,
             latestResponse: nil,
             connection: nil,
+            safeArea: RelayNotchSafeArea(
+                topInset: 38,
+                obstructionWidth: 224
+            ),
             submitCommand: {},
             retryConnection: {},
             submitPendingAnswers: { _, _ in },

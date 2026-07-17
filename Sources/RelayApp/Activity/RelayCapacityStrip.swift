@@ -26,7 +26,7 @@ struct RelayCapacityStrip: View {
     }
 
     private var stripContent: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Label(
                 presentation.title,
                 systemImage: "gauge.with.dots.needle.50percent"
@@ -62,8 +62,8 @@ struct RelayCapacityStrip: View {
                 .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 10)
-        .frame(minHeight: 30)
+        .padding(.horizontal, 12)
+        .frame(height: 32)
     }
 }
 

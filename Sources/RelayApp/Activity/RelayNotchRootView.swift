@@ -58,13 +58,13 @@ struct RelayNotchRootView: View {
                         composerPhase: composerPhase,
                         latestResponse: latestResponse,
                         connection: connection,
+                        safeArea: safeArea,
                         submitCommand: submitCommand,
                         retryConnection: retryConnection,
                         submitPendingAnswers: submitPendingAnswers,
                         submitPendingDecision: submitPendingDecision,
                         collapse: collapse
                     )
-                    .padding(.top, safeArea.topInset)
                 }
             }
             .transition(contentTransition)
