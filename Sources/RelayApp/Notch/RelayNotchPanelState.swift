@@ -3,6 +3,7 @@ import Observation
 @MainActor
 @Observable
 final class RelayNotchPanelState {
+    let drafts = RelayPanelDraftStore()
     var presentation: RelayPanelPresentation = .hidden
     var topInset: Double = 0
     @ObservationIgnored
@@ -11,6 +12,8 @@ final class RelayNotchPanelState {
     @ObservationIgnored
     var contentHeightRequestHandler:
         ((RelayPanelPresentation, Double) -> Void)?
+    @ObservationIgnored
+    var priorityActivityHandler: ((RelayAutomaticPeekTrigger?) -> Void)?
 
     func requestPresentation(
         _ presentation: RelayPanelPresentation
@@ -23,5 +26,14 @@ final class RelayNotchPanelState {
         for presentation: RelayPanelPresentation
     ) {
         contentHeightRequestHandler?(presentation, height)
+    }
+
+    func requestCollapse() {
+        guard drafts.canDismiss else { return }
+        requestPresentation(presentation.collapsed)
+    }
+
+    func priorityActivityChanged(_ trigger: RelayAutomaticPeekTrigger?) {
+        priorityActivityHandler?(trigger)
     }
 }

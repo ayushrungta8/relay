@@ -45,6 +45,7 @@ struct AppleSpeechCommandSinkTests {
             await recorder.events()
                 == [
                     .transcript("What tasks are running?"),
+                    .answerUpdate("Two worker tasks are active."),
                     .answer("Two worker tasks are active."),
                 ]
         )
@@ -111,6 +112,7 @@ struct AppleSpeechCommandSinkTests {
                     .transcript("First command"),
                     .failed("The controller failed."),
                     .transcript("Second command"),
+                    .answerUpdate("Second command worked."),
                     .answer("Second command worked."),
                 ]
         )

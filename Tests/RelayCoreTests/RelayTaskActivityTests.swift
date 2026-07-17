@@ -67,6 +67,25 @@ struct RelayTaskActivityTests {
     }
 
     @Test
+    func terminalFailedTurnIsFailedAttentionEvenWhenThreadIsIdle() {
+        let failed = RelayTaskActivity(
+            thread: CodexThread(
+                id: "terminal-failure",
+                preview: "Terminal failure",
+                cwd: "/tmp",
+                updatedAt: 10,
+                status: .idle
+            ),
+            latestUpdate: "Failed: Tests failed.",
+            latestTurnStatus: .failed,
+            latestTurnError: "Tests failed."
+        )
+
+        #expect(failed.attentionState == .failed)
+        #expect(failed.latestTurnError == "Tests failed.")
+    }
+
+    @Test
     func computesContextPercentageFromLastTurnOnlyWhenWindowIsNonzero() {
         let total = RelayTokenUsageBreakdown(
             inputTokens: 80_000,

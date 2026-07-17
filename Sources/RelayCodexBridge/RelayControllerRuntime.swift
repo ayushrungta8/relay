@@ -3,6 +3,21 @@ import RelayBrain
 
 public protocol RelayCommandHandling: Sendable {
     func submit(_ text: String) async throws -> String
+    func submit(
+        _ text: String,
+        onAnswerUpdate: @escaping @Sendable (String) async -> Void
+    ) async throws -> String
+}
+
+public extension RelayCommandHandling {
+    func submit(
+        _ text: String,
+        onAnswerUpdate: @escaping @Sendable (String) async -> Void
+    ) async throws -> String {
+        let answer = try await submit(text)
+        await onAnswerUpdate(answer)
+        return answer
+    }
 }
 
 public actor RelayControllerRuntime: RelayCommandHandling {
@@ -22,6 +37,13 @@ public actor RelayControllerRuntime: RelayCommandHandling {
     }
 
     public func submit(_ text: String) async throws -> String {
+        try await submit(text, onAnswerUpdate: { _ in })
+    }
+
+    public func submit(
+        _ text: String,
+        onAnswerUpdate: @escaping @Sendable (String) async -> Void
+    ) async throws -> String {
         let controller = try await controllerThread()
         let events = try await session.submitUserText(
             text,
@@ -30,7 +52,8 @@ public actor RelayControllerRuntime: RelayCommandHandling {
         return try await RelayControllerEventProcessor.answer(
             from: events,
             session: session,
-            router: router
+            router: router,
+            onAnswerUpdate: onAnswerUpdate
         )
     }
 

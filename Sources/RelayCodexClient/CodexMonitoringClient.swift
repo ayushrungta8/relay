@@ -63,12 +63,7 @@ public actor CodexMonitoringClient {
                     "includeTurns": .bool(true),
                 ])
             )
-            tasks.append(
-                RelayTaskActivity(
-                    thread: read.thread.thread,
-                    latestUpdate: read.thread.latestUpdate
-                )
-            )
+            tasks.append(read.thread.activity)
         }
 
         let rateLimits: CodexRateLimitsReadResult = try await request(

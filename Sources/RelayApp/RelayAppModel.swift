@@ -29,7 +29,17 @@ final class RelayAppModel {
     var commandText = ""
     private(set) var composerPhase: RelayComposerPhase = .idle
     private(set) var latestResponse: String?
-    private(set) var pendingInteractions: [RelayPendingInteraction] = []
+    private var observedPendingInteractions: [RelayPendingInteraction] = []
+    private var resolvingInteractionsByID:
+        [String: RelayPendingInteraction] = [:]
+
+    var pendingInteractions: [RelayPendingInteraction] {
+        let observedIDs = Set(observedPendingInteractions.map(\.id))
+        let retained = resolvingInteractionsByID.values.filter {
+            !observedIDs.contains($0.id) && taskStillNeedsInput($0.threadID)
+        }
+        return observedPendingInteractions + retained.sorted { $0.id < $1.id }
+    }
 
     var activityStore: RelayActivityStore? {
         runtime?.activityStore
@@ -159,7 +169,12 @@ final class RelayAppModel {
         latestResponse = nil
 
         do {
-            latestResponse = try await commandHandler.submit(command)
+            latestResponse = try await commandHandler.submit(
+                command,
+                onAnswerUpdate: { [weak self] answer in
+                    await self?.receiveAnswerUpdate(answer)
+                }
+            )
             commandText = ""
             composerPhase = .idle
             await refresh()
@@ -288,6 +303,8 @@ final class RelayAppModel {
             voiceAwaitingAnswer = false
             composerPhase = .idle
             await refresh()
+        case let .answerUpdate(answer):
+            latestResponse = answer
         case let .failed(message):
             voiceAwaitingAnswer = false
             composerPhase = .failed(message)
@@ -302,7 +319,18 @@ final class RelayAppModel {
         pendingInteractionTask = Task { [weak self] in
             for await interactions in updates {
                 guard let self, !Task.isCancelled else { return }
-                pendingInteractions = interactions
+                let newIDs = Set(interactions.map(\.id))
+                for interaction in observedPendingInteractions
+                where interaction.state == .resolving
+                    && !newIDs.contains(interaction.id) {
+                    resolvingInteractionsByID[interaction.id] = interaction
+                }
+                for interaction in interactions {
+                    resolvingInteractionsByID.removeValue(
+                        forKey: interaction.id
+                    )
+                }
+                observedPendingInteractions = interactions
             }
         }
         do {
@@ -325,6 +353,20 @@ final class RelayAppModel {
             return false
         }
         return lhs.updatedAt > rhs.updatedAt
+    }
+
+    private func taskStillNeedsInput(_ threadID: String) -> Bool {
+        activityStore?.attentionTasks.contains {
+            $0.id == threadID && $0.attentionState == .needsInput
+        } == true
+    }
+
+    private func receiveAnswerUpdate(_ answer: String) {
+        latestResponse = answer
+    }
+
+    func reportPanelShortcutFailure(_ message: String) {
+        composerPhase = .failed(message)
     }
 }
 

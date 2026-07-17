@@ -94,7 +94,12 @@ public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
 
             await onEvent(.transcript(transcript))
             try ensureActive(sessionID)
-            let answer = try await commandHandler.submit(transcript)
+            let answer = try await commandHandler.submit(
+                transcript,
+                onAnswerUpdate: { [onEvent] answer in
+                    await onEvent(.answerUpdate(answer))
+                }
+            )
             try ensureActive(sessionID)
             activeSessionID = nil
             state = .idle

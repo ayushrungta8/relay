@@ -70,6 +70,11 @@ struct CodexMonitoringThreadRecord: Decodable {
 
     var latestUpdate: String? {
         for turn in turns.reversed() {
+            if turn.status == .failed,
+               let error = turn.error?.message,
+               !error.isEmpty {
+                return Self.normalized("Failed: \(error)")
+            }
             for item in turn.items.reversed() {
                 switch item.type {
                 case "agentMessage":
@@ -96,6 +101,18 @@ struct CodexMonitoringThreadRecord: Decodable {
             }
         }
         return nil
+    }
+
+    var latestTurnStatus: RelayTaskTurnStatus? { turns.last?.status }
+    var latestTurnError: String? { turns.last?.error?.message }
+
+    var activity: RelayTaskActivity {
+        RelayTaskActivity(
+            thread: thread,
+            latestUpdate: latestUpdate,
+            latestTurnStatus: latestTurnStatus,
+            latestTurnError: latestTurnError
+        )
     }
 
     private static func normalized(_ text: String) -> String {
@@ -127,6 +144,7 @@ struct CodexMonitoringStatusRecord: Decodable {
 }
 
 struct CodexMonitoringTurnRecord: Decodable {
+    let status: RelayTaskTurnStatus?
     let items: [CodexMonitoringItemRecord]
     let error: CodexMonitoringErrorRecord?
 }

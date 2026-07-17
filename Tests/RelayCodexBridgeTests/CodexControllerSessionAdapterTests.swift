@@ -106,6 +106,8 @@ struct CodexControllerSessionAdapterTests {
                 ])
             )
         )
+        let deltaEvent = try #require(try await iterator.next())
+        #expect(deltaEvent == .textDelta("Two tasks are active."))
         await rpc.emit(
             .notification(
                 method: "turn/completed",

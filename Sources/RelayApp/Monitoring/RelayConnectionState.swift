@@ -4,7 +4,11 @@ nonisolated enum RelayConnectionState: Sendable, Equatable {
     case idle
     case connecting
     case connected(lastUpdatedAt: Date)
-    case offline(message: String, reconnectAttempt: Int)
+    case offline(
+        message: String,
+        reconnectAttempt: Int,
+        lastUpdatedAt: Date?
+    )
 
     var isConnected: Bool {
         guard case .connected = self else { return false }
@@ -17,7 +21,15 @@ nonisolated enum RelayConnectionState: Sendable, Equatable {
     }
 
     var errorMessage: String? {
-        guard case let .offline(message, _) = self else { return nil }
+        guard case let .offline(message, _, _) = self else { return nil }
         return message
+    }
+
+    var lastUpdatedAt: Date? {
+        switch self {
+        case let .connected(lastUpdatedAt): lastUpdatedAt
+        case let .offline(_, _, lastUpdatedAt): lastUpdatedAt
+        case .idle, .connecting: nil
+        }
     }
 }

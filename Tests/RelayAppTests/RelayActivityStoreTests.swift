@@ -214,6 +214,80 @@ struct RelayActivityStoreTests {
         #expect(await sleepProbe.wasReconnectCancelled())
     }
 
+    @MainActor
+    @Test
+    func coalescesOverlappingRefreshAndImmediatelyReruns() async {
+        let monitoring = SuspendedMonitoringStub()
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {}
+        )
+
+        let first = Task { await store.refresh() }
+        await monitoring.waitForCall(1)
+        await store.refresh()
+        await monitoring.resumeCall(1, snapshot: .init(tasks: [], usage: nil))
+        await monitoring.waitForCall(2)
+        await monitoring.resumeCall(2, snapshot: .init(tasks: [], usage: nil))
+        await first.value
+
+        #expect(await monitoring.callCount() == 2)
+    }
+
+    @MainActor
+    @Test
+    func replaysStatusEventReceivedDuringSuspendedSnapshot() async {
+        let initial = activity(id: "worker", updatedAt: 1, status: .active)
+        let monitoring = SuspendedMonitoringStub()
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {}
+        )
+        let seed = Task { await store.start() }
+        await monitoring.waitForCall(1)
+        await monitoring.resumeCall(1, snapshot: .init(tasks: [initial], usage: nil))
+        await seed.value
+
+        let refresh = Task { await store.refresh() }
+        await monitoring.waitForCall(2)
+        await monitoring.emit(.threadStatusChanged(
+            threadID: "worker",
+            status: .active,
+            activeFlags: [.waitingOnUserInput]
+        ))
+        await Task.yield()
+        await monitoring.resumeCall(2, snapshot: .init(tasks: [initial], usage: nil))
+        await refresh.value
+
+        #expect(store.attentionTasks.first?.attentionState == .needsInput)
+    }
+
+    @MainActor
+    @Test
+    func unknownThreadStatusSchedulesCoalescedRead() async {
+        let monitoring = SuspendedMonitoringStub()
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {}
+        )
+        let start = Task { await store.start() }
+        await monitoring.waitForCall(1)
+        await monitoring.emit(.threadStatusChanged(
+            threadID: "new-worker",
+            status: .active,
+            activeFlags: []
+        ))
+        await monitoring.resumeCall(1, snapshot: .init(tasks: [], usage: nil))
+        await monitoring.waitForCall(2)
+        await monitoring.resumeCall(2, snapshot: .init(tasks: [], usage: nil))
+        await start.value
+
+        #expect(await monitoring.callCount() == 2)
+    }
+
     private func activity(
         id: String,
         updatedAt: Int,
@@ -256,6 +330,38 @@ private actor MonitoringStub: RelayActivityMonitoring {
     func snapshotCallCount() -> Int {
         snapshotCalls
     }
+}
+
+private actor SuspendedMonitoringStub: RelayActivityMonitoring {
+    nonisolated let eventStream: AsyncStream<RelayMonitoringEvent>
+    private let eventContinuation: AsyncStream<RelayMonitoringEvent>.Continuation
+    private var calls = 0
+    private var continuations: [Int: CheckedContinuation<RelayMonitoringSnapshot, Never>] = [:]
+
+    init() {
+        let pair = AsyncStream<RelayMonitoringEvent>.makeStream()
+        eventStream = pair.stream
+        eventContinuation = pair.continuation
+    }
+
+    nonisolated func events() -> AsyncStream<RelayMonitoringEvent> { eventStream }
+
+    func snapshot(limit: Int) async -> RelayMonitoringSnapshot {
+        calls += 1
+        let call = calls
+        return await withCheckedContinuation { continuations[call] = $0 }
+    }
+
+    func waitForCall(_ expected: Int) async {
+        while calls < expected { await Task.yield() }
+    }
+
+    func resumeCall(_ call: Int, snapshot: RelayMonitoringSnapshot) {
+        continuations.removeValue(forKey: call)?.resume(returning: snapshot)
+    }
+
+    func emit(_ event: RelayMonitoringEvent) { eventContinuation.yield(event) }
+    func callCount() -> Int { calls }
 }
 
 private actor TaskOperationsStub: CodexTaskOperating {

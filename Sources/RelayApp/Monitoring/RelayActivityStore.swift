@@ -31,6 +31,7 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private var reconnectTask: Task<Void, Never>?
     private var isStarted = false
     private var isRefreshing = false
+    private var refreshRequested = false
     private var reconnectAttempt = 0
 
     private(set) var attentionTasks: [RelayTaskActivity] = []
@@ -42,6 +43,7 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private(set) var connectionState: RelayConnectionState = .idle
     private(set) var lastSelectedThreadID: String?
     private(set) var selectedThreadID: String?
+    private(set) var lastUpdatedAt: Date?
 
     init(
         monitoring: any RelayActivityMonitoring,
@@ -69,10 +71,21 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     }
 
     func refresh() async {
-        guard !isRefreshing else { return }
+        guard !isRefreshing else {
+            refreshRequested = true
+            return
+        }
         isRefreshing = true
         defer { isRefreshing = false }
 
+        repeat {
+            refreshRequested = false
+            await performRefresh()
+        } while refreshRequested
+    }
+
+    private func performRefresh() async {
+        let eventVersion = await state.beginSnapshot()
         do {
             let snapshot = try await monitoring.snapshot(limit: 25)
             let controllerThreadID =
@@ -80,16 +93,19 @@ final class RelayActivityStore: RelaySupervisionStateReading {
             publish(
                 await state.merge(
                     snapshot: snapshot,
-                    controllerThreadID: controllerThreadID
+                    controllerThreadID: controllerThreadID,
+                    replayingEventsAfter: eventVersion
                 )
             )
             cancelReconnect()
             reconnectAttempt = 0
-            connectionState = .connected(lastUpdatedAt: Date())
+            lastUpdatedAt = .now
+            connectionState = .connected(lastUpdatedAt: lastUpdatedAt ?? .now)
         } catch {
             connectionState = .offline(
                 message: error.localizedDescription,
-                reconnectAttempt: reconnectAttempt
+                reconnectAttempt: reconnectAttempt,
+                lastUpdatedAt: lastUpdatedAt
             )
             scheduleReconnect()
         }
@@ -178,7 +194,8 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         } catch {
             connectionState = .offline(
                 message: error.localizedDescription,
-                reconnectAttempt: reconnectAttempt
+                reconnectAttempt: reconnectAttempt,
+                lastUpdatedAt: lastUpdatedAt
             )
             scheduleReconnect()
         }
@@ -217,7 +234,11 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         case .threadStatusChanged,
              .threadTokenUsageUpdated,
              .usageUpdated:
-            publish(await state.merge(event: event))
+            let result = await state.merge(event: event)
+            publish(result.values)
+            if result.needsRefresh {
+                await refresh()
+            }
         case let .lifecycle(lifecycle):
             receive(lifecycle: lifecycle)
         case .protocolIssue:
@@ -233,13 +254,14 @@ final class RelayActivityStore: RelaySupervisionStateReading {
             connectionState = .connecting
         case .ready:
             reconnectAttempt = 0
-            connectionState = .connected(lastUpdatedAt: Date())
+            connectionState = .connected(lastUpdatedAt: lastUpdatedAt ?? .now)
         case .stopping:
             break
         case let .failed(message):
             connectionState = .offline(
                 message: message,
-                reconnectAttempt: reconnectAttempt
+                reconnectAttempt: reconnectAttempt,
+                lastUpdatedAt: lastUpdatedAt
             )
             scheduleReconnect()
         }
@@ -273,6 +295,7 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         usage = values.usage
         tokenUsageByThreadID = values.tokenUsageByThreadID
         lastSelectedThreadID = values.lastSelectedThreadID
+        selectedThreadID = values.selectedThreadID
     }
 
     private static func title(for task: RelayTaskActivity) -> String {

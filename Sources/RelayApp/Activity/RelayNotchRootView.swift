@@ -7,16 +7,21 @@ struct RelayNotchRootView: View {
     let capacity: RelayCapacityPresentation
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
     let pendingInteractions: [RelayPendingInteraction]
+    let drafts: RelayPanelDraftStore
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
+    let latestResponse: String?
+    let connection: RelayConnectionPresentation?
     let topInset: Double
     let submitCommand: () -> Void
+    let retryConnection: () -> Void
     let submitPendingAnswers:
         (String, [String: [String]]) async throws -> Void
     let submitPendingDecision:
         (String, RelayPendingApprovalDecision) async throws -> Void
     let requestPresentation: (RelayPanelPresentation) -> Void
+    let priorityActivityChanged: (RelayAutomaticPeekTrigger?) -> Void
     let reportContentHeight: (RelayPanelPresentation, Double) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -52,6 +57,7 @@ struct RelayNotchRootView: View {
                         capacity: capacity,
                         tokenUsageByThreadID: tokenUsageByThreadID,
                         actions: actions,
+                        drafts: drafts,
                         expand: expand
                     )
                     .onGeometryChange(for: Double.self) { proxy in
@@ -65,10 +71,14 @@ struct RelayNotchRootView: View {
                         capacity: capacity,
                         tokenUsageByThreadID: tokenUsageByThreadID,
                         pendingInteractions: pendingInteractions,
+                        drafts: drafts,
                         actions: actions,
                         commandText: $commandText,
                         composerPhase: composerPhase,
+                        latestResponse: latestResponse,
+                        connection: connection,
                         submitCommand: submitCommand,
+                        retryConnection: retryConnection,
                         submitPendingAnswers: submitPendingAnswers,
                         submitPendingDecision: submitPendingDecision,
                         collapse: collapse,
@@ -81,6 +91,10 @@ struct RelayNotchRootView: View {
         }
         .tint(RelayPalette.accent)
         .animation(contentAnimation, value: presentation)
+        .onChange(of: activity.automaticPeekTrigger, initial: true) {
+            _, trigger in
+            priorityActivityChanged(trigger)
+        }
     }
 
     private var contentAnimation: Animation {
@@ -110,10 +124,12 @@ struct RelayNotchRootView: View {
     }
 
     private func collapse() {
+        guard drafts.canDismiss else { return }
         requestPresentation(.compact)
     }
 
     private func reportExpandedHeight(_ height: Double) {
         reportContentHeight(.expanded, height)
     }
+
 }

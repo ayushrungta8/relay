@@ -47,6 +47,16 @@ relay_terminate_processes_for_executable() {
     sleep "$delay"
   done
 
+  remaining=()
+  while IFS= read -r pid; do
+    if [[ -n "$pid" ]]; then
+      remaining+=("$pid")
+    fi
+  done < <(relay_process_pids_for_executable "$expected_executable")
+  if (( ${#remaining[@]} == 0 )); then
+    return 0
+  fi
+
   printf 'error: processes for %s survived termination: %s\n' \
     "$expected_executable" "${remaining[*]}" >&2
   return 1
@@ -84,7 +94,26 @@ relay_verify_exactly_one_process() {
     esac
   done
 
-  printf 'error: expected one process for %s, found none\n' \
-    "$expected_executable" >&2
-  return 1
+  pids=()
+  while IFS= read -r pid; do
+    if [[ -n "$pid" ]]; then
+      pids+=("$pid")
+    fi
+  done < <(relay_process_pids_for_executable "$expected_executable")
+  case "${#pids[@]}" in
+    0)
+      printf 'error: expected one process for %s, found none\n' \
+        "$expected_executable" >&2
+      return 1
+      ;;
+    1)
+      printf '%s\n' "${pids[0]}"
+      return 0
+      ;;
+    *)
+      printf 'error: expected one process for %s, found %s: %s\n' \
+        "$expected_executable" "${#pids[@]}" "${pids[*]}" >&2
+      return 1
+      ;;
+  esac
 }

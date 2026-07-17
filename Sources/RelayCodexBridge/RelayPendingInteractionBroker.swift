@@ -77,7 +77,12 @@ public actor RelayPendingInteractionBroker {
                      .lifecycle(.stopping),
                      .lifecycle(.stopped):
                     await self?.discardUnanswerableRequests()
-                case .lifecycle, .notification, .protocolIssue:
+                case let .notification(method, params):
+                    await self?.receiveNotification(
+                        method: method,
+                        params: params
+                    )
+                case .lifecycle, .protocolIssue:
                     break
                 }
             }
@@ -163,6 +168,9 @@ public actor RelayPendingInteractionBroker {
               record.responseProtocol == .questions else {
             throw RelayPendingInteractionBrokerError.wrongInteractionKind
         }
+        guard record.interaction.state == .pending else {
+            throw RelayPendingInteractionBrokerError.submissionInProgress
+        }
         let expectedIDs = Set(questions.map(\.id))
         guard Set(answers.keys) == expectedIDs,
               answers.values.allSatisfy({ !$0.isEmpty }) else {
@@ -208,6 +216,9 @@ public actor RelayPendingInteractionBroker {
         }
         guard case let .approval(approval) = record.interaction.kind else {
             throw RelayPendingInteractionBrokerError.wrongInteractionKind
+        }
+        guard record.interaction.state == .pending else {
+            throw RelayPendingInteractionBrokerError.submissionInProgress
         }
         guard decision == .approve ? approval.canApprove : approval.canDecline
         else {
@@ -278,10 +289,46 @@ public actor RelayPendingInteractionBroker {
               record.token == token else {
             return
         }
-        records.removeValue(forKey: recordKey)
-        recordKeysByInteractionID.removeValue(
-            forKey: record.interaction.id
+        records[recordKey] = Record(
+            requestID: record.requestID,
+            interaction: RelayPendingInteraction(
+                id: record.interaction.id,
+                threadID: record.interaction.threadID,
+                turnID: record.interaction.turnID,
+                kind: record.interaction.kind,
+                state: .resolving
+            ),
+            responseProtocol: record.responseProtocol,
+            token: record.token,
+            arrivalOrder: record.arrivalOrder,
+            isSubmitting: false
         )
+        publish()
+    }
+
+    private func receiveNotification(method: String, params: JSONValue?) {
+        guard method == "thread/status/changed",
+              let params = params?.objectValue,
+              let threadID = params["threadId"]?.stringValue else {
+            return
+        }
+        let flags = params["status"]?["activeFlags"]?.arrayValue?
+            .compactMap(\.stringValue) ?? []
+        guard !flags.contains("waitingOnApproval"),
+              !flags.contains("waitingOnUserInput") else { return }
+        let keys = records.compactMap { key, record in
+            record.threadID == threadID
+                && record.interaction.state == .resolving
+                ? key : nil
+        }
+        guard !keys.isEmpty else { return }
+        for key in keys {
+            if let record = records.removeValue(forKey: key) {
+                recordKeysByInteractionID.removeValue(
+                    forKey: record.interaction.id
+                )
+            }
+        }
         publish()
     }
 

@@ -11,7 +11,6 @@ struct RelayApplication: App {
         panelController = RelayNotchPanelController(model: model)
         Task { @MainActor in
             await model.start()
-            await model.refresh()
         }
     }
 
@@ -27,6 +26,6 @@ struct RelayApplication: App {
     }
 
     private func openRelay() {
-        panelController.present(.expanded)
+        panelController.toggle()
     }
 }

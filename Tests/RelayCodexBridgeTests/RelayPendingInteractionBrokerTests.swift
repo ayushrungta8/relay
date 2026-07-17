@@ -80,6 +80,8 @@ struct RelayPendingInteractionBrokerTests {
             answers["name"]?["answers"]?.arrayValue
                 == [.string("relay-local")]
         )
+        #expect(await broker.interaction(id: interaction.id)?.state == .resolving)
+        await clearWaiting(threadID: "worker-1", rpc: rpc)
         #expect(await broker.interaction(id: interaction.id) == nil)
     }
 
@@ -250,7 +252,7 @@ struct RelayPendingInteractionBrokerTests {
         try await first
 
         #expect(await rpc.responseCallCount() == 1)
-        #expect(await broker.interaction(id: interaction.id) == nil)
+        #expect(await broker.interaction(id: interaction.id)?.state == .resolving)
     }
 
     @Test
@@ -309,7 +311,7 @@ struct RelayPendingInteractionBrokerTests {
             answers: ["choice": ["B"]]
         )
         #expect(await rpc.responseCallCount() == 2)
-        #expect(await broker.interaction(id: interaction.id) == nil)
+        #expect(await broker.interaction(id: interaction.id)?.state == .resolving)
     }
 
     @Test
@@ -348,7 +350,7 @@ struct RelayPendingInteractionBrokerTests {
             interactionID: replacement.id,
             answers: ["choice": ["new"]]
         )
-        #expect(await broker.interaction(id: replacement.id) == nil)
+        #expect(await broker.interaction(id: replacement.id)?.state == .resolving)
     }
 
     @Test
@@ -410,6 +412,32 @@ struct RelayPendingInteractionBrokerTests {
         )
 
         #expect(await broker.interaction(threadID: "external-worker") == nil)
+    }
+
+    @Test
+    func successfulSubmissionRemainsResolvingUntilAuthoritativeStatusClears()
+        async throws
+    {
+        let rpc = PendingInteractionRPCStub()
+        let broker = RelayPendingInteractionBroker(rpc: rpc)
+        let interaction = try await observe(
+            questionRequest(requestID: "resolve", threadID: "worker-resolve"),
+            with: broker,
+            rpc: rpc
+        )
+
+        try await broker.submitAnswers(
+            interactionID: interaction.id,
+            answers: ["choice": ["A"]]
+        )
+
+        #expect(await broker.interaction(id: interaction.id)?.state == .resolving)
+
+        await clearWaiting(threadID: "worker-resolve", rpc: rpc)
+        for _ in 0..<200 where await broker.interaction(id: interaction.id) != nil {
+            await Task.yield()
+        }
+        #expect(await broker.interaction(id: interaction.id) == nil)
     }
 }
 
@@ -565,4 +593,21 @@ private func waitForInteraction(
     where await broker.interaction(id: id) != expected {
         await Task.yield()
     }
+}
+
+private func clearWaiting(
+    threadID: String,
+    rpc: PendingInteractionRPCStub
+) async {
+    await rpc.emit(.notification(
+        method: "thread/status/changed",
+        params: .object([
+            "threadId": .string(threadID),
+            "status": .object([
+                "type": .string("active"),
+                "activeFlags": .array([]),
+            ]),
+        ])
+    ))
+    await Task.yield()
 }

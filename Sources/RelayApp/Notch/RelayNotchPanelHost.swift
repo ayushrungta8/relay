@@ -16,14 +16,19 @@ struct RelayNotchPanelHost: View {
             tokenUsageByThreadID:
                 model.activityStore?.tokenUsageByThreadID ?? [:],
             pendingInteractions: model.pendingInteractions,
+            drafts: state.drafts,
             actions: taskActions,
             commandText: $model.commandText,
             composerPhase: model.composerPhase,
+            latestResponse: model.latestResponse,
+            connection: connectionPresentation,
             topInset: state.topInset,
             submitCommand: submitCommand,
+            retryConnection: retryConnection,
             submitPendingAnswers: submitPendingAnswers,
             submitPendingDecision: submitPendingDecision,
             requestPresentation: state.requestPresentation,
+            priorityActivityChanged: state.priorityActivityChanged,
             reportContentHeight: { presentation, height in
                 state.requestContentHeight(height, for: presentation)
             }
@@ -47,8 +52,16 @@ struct RelayNotchPanelHost: View {
         RelayCapacityPresentation(snapshot: model.activityStore?.usage)
     }
 
+    private var connectionPresentation: RelayConnectionPresentation? {
+        guard let state = model.activityStore?.connectionState else {
+            return nil
+        }
+        return RelayConnectionPresentation(state: state)
+    }
+
     private var taskActions: RelayTaskActions {
         RelayTaskActions(
+            select: select,
             open: open,
             markRead: markRead,
             send: send,
@@ -56,10 +69,18 @@ struct RelayNotchPanelHost: View {
         )
     }
 
+    private func select(_ task: RelayTaskActivity) async {
+        await model.selectTask(threadID: task.id)
+    }
+
     private func submitCommand() {
         Task {
             await model.submitCommand()
         }
+    }
+
+    private func retryConnection() {
+        Task { await model.activityStore?.refresh() }
     }
 
     private func submitPendingAnswers(

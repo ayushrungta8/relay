@@ -136,6 +136,60 @@ struct RelayAppModelTests {
                 == .failed("The controller is offline.")
         )
     }
+
+    @MainActor
+    @Test
+    func typedCommandPublishesStreamingAnswerBeforeCompletion() async {
+        let handler = BlockingStreamingCommandHandler()
+        let model = RelayAppModel(commandHandler: handler)
+        model.commandText = "Status"
+
+        let submission = Task { await model.submitCommand() }
+        await handler.waitForUpdate()
+        for _ in 0..<100 where model.latestResponse != "Partial answer" {
+            await Task.yield()
+        }
+
+        #expect(model.latestResponse == "Partial answer")
+        #expect(model.composerPhase == .sending)
+
+        await handler.finish()
+        await submission.value
+        #expect(model.latestResponse == "Partial answer completed.")
+    }
+}
+
+private actor BlockingStreamingCommandHandler: RelayCommandHandling {
+    private var didUpdate = false
+    private var updateWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+
+    func submit(_ text: String) async throws -> String {
+        "Partial answer completed."
+    }
+
+    func submit(
+        _ text: String,
+        onAnswerUpdate: @escaping @Sendable (String) async -> Void
+    ) async throws -> String {
+        await onAnswerUpdate("Partial answer")
+        didUpdate = true
+        let waiters = updateWaiters
+        updateWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+        await withCheckedContinuation { finishContinuation = $0 }
+        return "Partial answer completed."
+    }
+
+    func waitForUpdate() async {
+        if didUpdate { return }
+        await withCheckedContinuation { updateWaiters.append($0) }
+    }
+
+    func finish() {
+        finishContinuation?.resume()
+        finishContinuation = nil
+    }
 }
 
 private actor StubThreadProvider: CodexThreadProviding {

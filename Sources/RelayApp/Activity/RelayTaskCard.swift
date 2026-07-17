@@ -11,13 +11,14 @@ struct RelayTaskCard: View {
     let tokenUsage: RelayThreadTokenUsage?
     let layout: Layout
     let actions: RelayTaskActions
+    let drafts: RelayPanelDraftStore
     let primaryAction: () -> Void
     var showsActionMenu = true
 
     @State private var isHovering = false
-    @State private var followUp = RelayTaskCardFollowUpState()
     @State private var isSending = false
     @State private var errorMessage: String?
+    @FocusState private var isPrimaryFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -55,6 +56,7 @@ struct RelayTaskCard: View {
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .focused($isPrimaryFocused)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityHint(primaryActionHint)
 
@@ -133,7 +135,7 @@ struct RelayTaskCard: View {
                 HStack(spacing: 8) {
                     TextField(
                         "Follow up on this task…",
-                        text: $followUp.draft,
+                        text: followUpBinding,
                         axis: .vertical
                     )
                     .textFieldStyle(.plain)
@@ -149,6 +151,14 @@ struct RelayTaskCard: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderedProminent)
                     .disabled(!canSend)
+
+                    Button(
+                        "Cancel follow-up",
+                        systemImage: "xmark",
+                        action: discardFollowUp
+                    )
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
                 }
                 .padding(9)
                 .background(
@@ -181,18 +191,35 @@ struct RelayTaskCard: View {
         )
         .onHover { isHovering = $0 }
         .onAppear {
-            followUp.synchronize(
+            drafts.synchronizeFollowUp(
+                threadID: task.id,
                 allowsTaskManagement: showsActionMenu
             )
         }
         .onChange(of: showsActionMenu) { _, allowsTaskManagement in
-            followUp.synchronize(
+            drafts.synchronizeFollowUp(
+                threadID: task.id,
                 allowsTaskManagement: allowsTaskManagement
             )
             if !allowsTaskManagement {
                 errorMessage = nil
             }
         }
+        .onChange(of: isPrimaryFocused) { _, isFocused in
+            guard isFocused else { return }
+            selectTask()
+        }
+    }
+
+    private var followUp: RelayTaskCardFollowUpState {
+        drafts.followUp(threadID: task.id)
+    }
+
+    private var followUpBinding: Binding<String> {
+        Binding(
+            get: { drafts.followUp(threadID: task.id).draft },
+            set: { drafts.setFollowUp($0, threadID: task.id) }
+        )
     }
 
     private var updatedDate: Date {
@@ -255,6 +282,7 @@ struct RelayTaskCard: View {
     }
 
     private func performPrimaryAction() {
+        selectTask()
         if layout == .compact {
             primaryAction()
         } else {
@@ -264,7 +292,8 @@ struct RelayTaskCard: View {
 
     private func beginFollowUp() {
         errorMessage = nil
-        followUp.beginFollowUp(
+        drafts.beginFollowUp(
+            threadID: task.id,
             allowsTaskManagement: showsActionMenu
         )
     }
@@ -296,7 +325,7 @@ struct RelayTaskCard: View {
         Task {
             do {
                 try await actions.send(task, prompt)
-                followUp.clear()
+                drafts.discardFollowUp(threadID: task.id)
             } catch {
                 errorMessage = followUp.allowsTaskManagement
                     ? error.localizedDescription
@@ -305,29 +334,12 @@ struct RelayTaskCard: View {
             isSending = false
         }
     }
-}
 
-struct RelayTaskCardFollowUpState: Equatable {
-    private(set) var allowsTaskManagement = true
-    var isComposing = false
-    var draft = ""
-
-    mutating func beginFollowUp(allowsTaskManagement: Bool) {
-        synchronize(allowsTaskManagement: allowsTaskManagement)
-        guard allowsTaskManagement else {
-            return
-        }
-        isComposing = true
+    private func discardFollowUp() {
+        drafts.discardFollowUp(threadID: task.id)
     }
 
-    mutating func synchronize(allowsTaskManagement: Bool) {
-        self.allowsTaskManagement = allowsTaskManagement
-        guard !allowsTaskManagement else { return }
-        clear()
-    }
-
-    mutating func clear() {
-        isComposing = false
-        draft = ""
+    private func selectTask() {
+        Task { await actions.select(task) }
     }
 }

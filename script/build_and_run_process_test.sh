@@ -57,8 +57,12 @@ if ! kill -0 "$UNRELATED_PID" >/dev/null 2>&1; then
   exit 1
 fi
 
-if relay_verify_exactly_one_process "$TARGET_BINARY" 1 0.01 \
-    >/dev/null 2>&1; then
+set +e
+relay_verify_exactly_one_process "$TARGET_BINARY" 1 0.01 \
+  >/dev/null 2>&1
+TARGET_VERIFY_STATUS=$?
+set -e
+if (( TARGET_VERIFY_STATUS == 0 )); then
   echo "unrelated process incorrectly satisfied target verification" >&2
   exit 1
 fi
@@ -73,9 +77,52 @@ fi
 
 "$UNRELATED_BINARY" 30 &
 SECOND_UNRELATED_PID=$!
-if relay_verify_exactly_one_process "$UNRELATED_BINARY" 1 0.01 \
-    >/dev/null 2>&1; then
+set +e
+relay_verify_exactly_one_process "$UNRELATED_BINARY" 1 0.01 \
+  >/dev/null 2>&1
+MULTIPLE_VERIFY_STATUS=$?
+set -e
+if (( MULTIPLE_VERIFY_STATUS == 0 )); then
   echo "multiple exact-path processes incorrectly passed verification" >&2
+  exit 1
+fi
+
+FINAL_SCAN_STATE="$TEST_DIR/final-scan-count"
+printf '0\n' > "$FINAL_SCAN_STATE"
+(
+  trap - EXIT
+  relay_process_pids_for_executable() {
+    local count
+    count="$(<"$FINAL_SCAN_STATE")"
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$FINAL_SCAN_STATE"
+    if (( count == 3 )); then
+      return 0
+    fi
+    printf '%s\n' "4242"
+  }
+  kill() { :; }
+  sleep() { :; }
+  relay_terminate_processes_for_executable "/final-scan/RelayApp" 1 0
+)
+
+VERIFY_FINAL_SCAN_STATE="$TEST_DIR/verify-final-scan-count"
+printf '0\n' > "$VERIFY_FINAL_SCAN_STATE"
+VERIFIED_FINAL_PID="$(
+  relay_process_pids_for_executable() {
+    local count
+    count="$(<"$VERIFY_FINAL_SCAN_STATE")"
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$VERIFY_FINAL_SCAN_STATE"
+    if (( count == 2 )); then
+      printf '%s\n' "4343"
+    fi
+  }
+  sleep() { :; }
+  relay_verify_exactly_one_process "/final-scan/RelayApp" 1 0
+)"
+if [[ "$VERIFIED_FINAL_PID" != "4343" ]]; then
+  echo "final verification scan did not observe timeout-edge process" >&2
   exit 1
 fi
 

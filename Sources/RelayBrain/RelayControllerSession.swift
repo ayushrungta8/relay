@@ -40,6 +40,7 @@ public struct RelayControllerToolCall: Sendable, Equatable {
 
 public enum RelayControllerEvent: Sendable, Equatable {
     case dynamicToolCall(RelayControllerToolCall)
+    case textDelta(String)
     case finalText(String)
 }
 

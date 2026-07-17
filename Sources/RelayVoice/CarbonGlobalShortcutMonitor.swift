@@ -42,13 +42,15 @@ public final class CarbonGlobalShortcutMonitor:
     RelayGlobalShortcutMonitoring
 {
     private static let signature: OSType = 0x524C5956 // RLYV
-    private static let identifier: UInt32 = 1
+    private let identifier: UInt32
 
     private var eventHandlerRef: EventHandlerRef?
     private var hotKeyRef: EventHotKeyRef?
     private var callbackBox: CarbonHotKeyCallbackBox?
 
-    public init() {}
+    public init(identifier: UInt32 = 1) {
+        self.identifier = identifier
+    }
 
     public func start(
         shortcut: RelayGlobalShortcut,
@@ -59,7 +61,7 @@ public final class CarbonGlobalShortcutMonitor:
 
         let callbackBox = CarbonHotKeyCallbackBox(
             signature: Self.signature,
-            identifier: Self.identifier,
+            identifier: identifier,
             handler: handler
         )
         var eventTypes = [
@@ -90,7 +92,7 @@ public final class CarbonGlobalShortcutMonitor:
         var registeredHotKey: EventHotKeyRef?
         let hotKeyID = EventHotKeyID(
             signature: Self.signature,
-            id: Self.identifier
+            id: identifier
         )
         let registrationStatus = RegisterEventHotKey(
             shortcut.keyCode,
@@ -179,7 +181,7 @@ private final class CarbonHotKeyCallbackBox: @unchecked Sendable {
             return OSStatus(eventNotHandledErr)
         }
 
-        DispatchQueue.main.async { [handler] in
+        Task { @MainActor [handler] in
             handler(event)
         }
         return noErr

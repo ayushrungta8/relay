@@ -1,4 +1,5 @@
 import AppKit
+import RelayVoice
 import SwiftUI
 
 @MainActor
@@ -14,15 +15,33 @@ final class RelayNotchPanelController {
     private var peekContentHeight: Double?
     private var compactContentHeight: Double?
     private var expandedContentHeight: Double?
+    private let panelShortcutMonitor = CarbonGlobalShortcutMonitor(
+        identifier: 2
+    )
+    private lazy var presentationCoordinator =
+        RelayPanelPresentationCoordinator(
+            presentPeek: { [weak self] in
+                guard let self,
+                      presentation == .hidden || presentation == .peek else {
+                    return
+                }
+                present(.peek)
+            },
+            dismissPeek: { [weak self] in
+                guard let self, presentation == .peek else { return }
+                dismiss()
+            }
+        )
 
     var presentation: RelayPanelPresentation {
         presentationState.presentation
     }
-    var shouldDismissOnOutsideClick: () -> Bool = { true }
+    var shouldDismissOnOutsideClick: () -> Bool
 
     init(model: RelayAppModel) {
         let presentationState = RelayNotchPanelState()
         self.presentationState = presentationState
+        shouldDismissOnOutsideClick = { presentationState.drafts.canDismiss }
         hostingView = NSHostingView(
             rootView: RelayNotchPanelHost(
                 model: model,
@@ -43,9 +62,24 @@ final class RelayNotchPanelController {
             [weak self] presentation, height in
             self?.updateContentHeight(height, for: presentation)
         }
+        presentationState.priorityActivityHandler = { [weak self] trigger in
+            self?.presentationCoordinator.observe(trigger)
+        }
         configurePanel(nonactivatingPanel)
         configurePanel(interactivePanel)
         nonactivatingPanel.contentView = hostingView
+        do {
+            try panelShortcutMonitor.start(
+                shortcut: .panelToggle
+            ) { [weak self] event in
+                guard event == .pressed else { return }
+                self?.toggle()
+            }
+        } catch {
+            model.reportPanelShortcutFailure(
+                "Relay could not register its panel shortcut: \(error.localizedDescription)"
+            )
+        }
     }
 
     func present(
@@ -100,6 +134,7 @@ final class RelayNotchPanelController {
     }
 
     func toggle(on screen: NSScreen? = nil) {
+        presentationCoordinator.cancelAutomaticDismissal()
         let target = presentation.toggled
         guard target != .hidden else {
             dismiss()
@@ -254,6 +289,7 @@ final class RelayNotchPanelController {
     }
 
     private func collapseOneLevel() {
+        guard presentationState.drafts.canDismiss else { return }
         let target = presentation.collapsed
         if target == .hidden {
             dismiss()
@@ -323,6 +359,7 @@ final class RelayNotchPanelController {
     }
 
     isolated deinit {
+        panelShortcutMonitor.stop()
         removeOutsideClickMonitoring()
     }
 }

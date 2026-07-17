@@ -107,6 +107,28 @@ struct CodexMonitoringClientTests {
     }
 
     @Test
+    func latestFailedTurnPrioritizesItsTerminalError() async throws {
+        let record = try JSONDecoder().decode(
+            CodexMonitoringThreadRecord.self,
+            from: Data(
+                """
+                {
+                  "id":"failed", "name":null, "preview":"Failed", "cwd":"/tmp",
+                  "updatedAt":100, "status":{"type":"idle","activeFlags":[]},
+                  "turns":[{"status":"failed","error":{"message":"Compilation failed"},
+                    "items":[{"type":"agentMessage","text":"Earlier progress"}]}]
+                }
+                """.utf8
+            )
+        )
+
+        #expect(record.latestTurnStatus == .failed)
+        #expect(record.latestTurnError == "Compilation failed")
+        #expect(record.latestUpdate == "Failed: Compilation failed")
+        #expect(record.activity.attentionState == .failed)
+    }
+
+    @Test
     func decodesStatusTokenAndRateLimitNotifications() async throws {
         let rpc = MonitoringFixtureRPC()
         let source = MonitoringEventSource()

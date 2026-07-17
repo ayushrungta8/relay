@@ -8,6 +8,7 @@ nonisolated struct RelayActivityReducer: Sendable {
     private(set) var tokenUsageByThreadID:
         [String: RelayThreadTokenUsage] = [:]
     private(set) var lastSelectedThreadID: String?
+    private(set) var selectedThreadID: String?
 
     var attentionTasks: [RelayTaskActivity] {
         orderedTasks.filter {
@@ -45,6 +46,9 @@ nonisolated struct RelayActivityReducer: Sendable {
             )
         }
         tasksByID = merged
+        if let selectedThreadID, merged[selectedThreadID] == nil {
+            self.selectedThreadID = nil
+        }
         usage = snapshot.usage
         tokenUsageByThreadID = snapshot.tokenUsageByThreadID
     }
@@ -63,7 +67,9 @@ nonisolated struct RelayActivityReducer: Sendable {
                     status: status,
                     activeFlags: activeFlags
                 ),
-                latestUpdate: previous.latestUpdate
+                latestUpdate: previous.latestUpdate,
+                latestTurnStatus: previous.latestTurnStatus,
+                latestTurnError: previous.latestTurnError
             )
             tasksByID[threadID] = Self.merging(
                 updated,
@@ -84,12 +90,19 @@ nonisolated struct RelayActivityReducer: Sendable {
         tasksByID[threadID] = RelayTaskActivity(
             thread: task.thread,
             latestUpdate: task.latestUpdate,
-            hasUnreadCompletion: false
+            hasUnreadCompletion: false,
+            latestTurnStatus: task.latestTurnStatus,
+            latestTurnError: task.latestTurnError
         )
     }
 
     mutating func select(threadID: String) {
+        selectedThreadID = threadID
         lastSelectedThreadID = threadID
+    }
+
+    func contains(threadID: String) -> Bool {
+        tasksByID[threadID] != nil
     }
 
     private var orderedTasks: [RelayTaskActivity] {
@@ -121,7 +134,9 @@ nonisolated struct RelayActivityReducer: Sendable {
             hasUnreadCompletion: task.hasUnreadCompletion
                 || previous?.hasUnreadCompletion == true
                 || becameCompleted
-                || becameFailed
+                || becameFailed,
+            latestTurnStatus: task.latestTurnStatus,
+            latestTurnError: task.latestTurnError
         )
     }
 
@@ -140,21 +155,41 @@ nonisolated struct RelayActivityReducer: Sendable {
 
 actor RelayActivityState {
     private var reducer = RelayActivityReducer()
+    private var eventVersion = 0
+    private var events: [(version: Int, event: RelayMonitoringEvent)] = []
+
+    func beginSnapshot() -> Int { eventVersion }
 
     func merge(
         snapshot: RelayMonitoringSnapshot,
-        controllerThreadID: String?
+        controllerThreadID: String?,
+        replayingEventsAfter version: Int
     ) -> RelayActivityValues {
         reducer.merge(
             snapshot: snapshot,
             controllerThreadID: controllerThreadID
         )
+        for entry in events where entry.version > version {
+            reducer.merge(event: entry.event)
+        }
+        events.removeAll()
         return RelayActivityValues(reducer: reducer)
     }
 
-    func merge(event: RelayMonitoringEvent) -> RelayActivityValues {
+    func merge(event: RelayMonitoringEvent) -> RelayActivityEventMergeResult {
+        eventVersion += 1
+        events.append((eventVersion, event))
+        let needsRefresh: Bool
+        if case let .threadStatusChanged(threadID, _, _) = event {
+            needsRefresh = !reducer.contains(threadID: threadID)
+        } else {
+            needsRefresh = false
+        }
         reducer.merge(event: event)
-        return RelayActivityValues(reducer: reducer)
+        return RelayActivityEventMergeResult(
+            values: RelayActivityValues(reducer: reducer),
+            needsRefresh: needsRefresh
+        )
     }
 
     func markRead(threadID: String) -> RelayActivityValues {
@@ -175,6 +210,7 @@ nonisolated struct RelayActivityValues: Sendable {
     let usage: RelayUsageSnapshot?
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
     let lastSelectedThreadID: String?
+    let selectedThreadID: String?
 
     init(reducer: RelayActivityReducer) {
         attentionTasks = reducer.attentionTasks
@@ -183,5 +219,11 @@ nonisolated struct RelayActivityValues: Sendable {
         usage = reducer.usage
         tokenUsageByThreadID = reducer.tokenUsageByThreadID
         lastSelectedThreadID = reducer.lastSelectedThreadID
+        selectedThreadID = reducer.selectedThreadID
     }
+}
+
+nonisolated struct RelayActivityEventMergeResult: Sendable {
+    let values: RelayActivityValues
+    let needsRefresh: Bool
 }

@@ -21,6 +21,58 @@ struct RelayControllerRuntimeTests {
         #expect(completed.text.contains("task-1"))
         #expect(await operations.listCallCount() == 1)
     }
+
+    @Test
+    func progressivelyPublishesControllerTextBeforeFinalAnswer() async throws {
+        let session = StreamingControllerSessionStub()
+        let runtime = RelayControllerRuntime(
+            session: session,
+            router: RelayToolCallRouter(operations: TaskOperationsStub())
+        )
+        let recorder = AnswerUpdateRecorder()
+
+        let answer = try await runtime.submit("Status") { text in
+            await recorder.record(text)
+        }
+
+        #expect(answer == "Two tasks are active.")
+        #expect(await recorder.values() == ["Two tasks", "Two tasks are active."])
+    }
+}
+
+private actor StreamingControllerSessionStub: RelayControllerSession {
+    func ensureControllerThread(
+        configuration: RelayControllerConfiguration
+    ) async throws -> RelayControllerThread {
+        RelayControllerThread(id: "controller")
+    }
+
+    func submitUserText(
+        _ text: String,
+        to controller: RelayControllerThread
+    ) async throws -> AsyncThrowingStream<RelayControllerEvent, any Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield(.textDelta("Two tasks"))
+            continuation.yield(.textDelta(" are active."))
+            continuation.yield(.finalText("Two tasks are active."))
+            continuation.finish()
+        }
+    }
+
+    func completeToolCall(
+        _ call: RelayControllerToolCall,
+        with result: RelayToolCallResult
+    ) async throws {}
+}
+
+private actor AnswerUpdateRecorder {
+    private var recorded: [String] = []
+
+    func record(_ value: String) {
+        recorded.append(value)
+    }
+
+    func values() -> [String] { recorded }
 }
 
 private actor ControllerSessionStub: RelayControllerSession {

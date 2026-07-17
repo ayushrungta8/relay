@@ -6,10 +6,14 @@ struct RelayExpandedActivityView: View {
     let capacity: RelayCapacityPresentation
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
     let pendingInteractions: [RelayPendingInteraction]
+    let drafts: RelayPanelDraftStore
     let actions: RelayTaskActions
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
+    let latestResponse: String?
+    let connection: RelayConnectionPresentation?
     let submitCommand: () -> Void
+    let retryConnection: () -> Void
     let submitPendingAnswers:
         (String, [String: [String]]) async throws -> Void
     let submitPendingDecision:
@@ -58,6 +62,13 @@ struct RelayExpandedActivityView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if let connection, connection.isVisible {
+                        RelayConnectionStatusView(
+                            presentation: connection,
+                            retry: retryConnection
+                        )
+                    }
+
                     if activity.orderedTasks.isEmpty {
                         ContentUnavailableView {
                             Label(
@@ -78,6 +89,7 @@ struct RelayExpandedActivityView: View {
                             tasks: activity.attentionTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
                             pendingInteractions: pendingInteractions,
+                            drafts: drafts,
                             actions: actions,
                             submitPendingAnswers: submitPendingAnswers,
                             submitPendingDecision: submitPendingDecision
@@ -89,6 +101,7 @@ struct RelayExpandedActivityView: View {
                             tasks: activity.runningTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
                             pendingInteractions: pendingInteractions,
+                            drafts: drafts,
                             actions: actions,
                             submitPendingAnswers: submitPendingAnswers,
                             submitPendingDecision: submitPendingDecision
@@ -100,6 +113,7 @@ struct RelayExpandedActivityView: View {
                             tasks: activity.recentTasks,
                             tokenUsageByThreadID: tokenUsageByThreadID,
                             pendingInteractions: pendingInteractions,
+                            drafts: drafts,
                             actions: actions,
                             submitPendingAnswers: submitPendingAnswers,
                             submitPendingDecision: submitPendingDecision
@@ -139,11 +153,21 @@ struct RelayExpandedActivityView: View {
             Divider()
                 .overlay(RelayPalette.hairline)
 
-            RelayCommandComposerView(
-                text: $commandText,
-                phase: composerPhase,
-                submit: submitCommand
-            )
+            VStack(spacing: 0) {
+                if let latestResponse,
+                   !latestResponse.trimmingCharacters(
+                       in: .whitespacesAndNewlines
+                   ).isEmpty {
+                    RelayControllerAnswerView(answer: latestResponse)
+                    Divider().overlay(RelayPalette.hairline)
+                }
+
+                RelayCommandComposerView(
+                    text: $commandText,
+                    phase: composerPhase,
+                    submit: submitCommand
+                )
+            }
             .background(RelayPalette.elevatedSurface)
             .onGeometryChange(for: Double.self) { proxy in
                 Double(proxy.size.height)
@@ -197,6 +221,7 @@ private extension RelayExpandedActivityView {
         let tasks: [RelayTaskActivity]
         let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
         let pendingInteractions: [RelayPendingInteraction]
+        let drafts: RelayPanelDraftStore
         let actions: RelayTaskActions
         let submitPendingAnswers:
             (String, [String: [String]]) async throws -> Void
@@ -228,6 +253,7 @@ private extension RelayExpandedActivityView {
                             tokenUsage: tokenUsageByThreadID[task.id],
                             layout: .expanded,
                             actions: actions,
+                            drafts: drafts,
                             primaryAction: {},
                             showsActionMenu:
                                 waitingPresentation?.allowsTaskManagement
@@ -265,6 +291,7 @@ private extension RelayExpandedActivityView {
         ) -> some View {
             RelayPendingInteractionView(
                 presentation: presentation,
+                drafts: drafts,
                 openInCodex: {
                     try await actions.open(task)
                 },
@@ -277,33 +304,14 @@ private extension RelayExpandedActivityView {
 
 private struct RelayPendingInteractionView: View {
     let presentation: RelayPendingInteractionPresentation
+    let drafts: RelayPanelDraftStore
     let openInCodex: () async throws -> Void
     let submitAnswers: (String, [String: [String]]) async throws -> Void
     let submitDecision:
         (String, RelayPendingApprovalDecision) async throws -> Void
 
-    @State private var answerDraft: RelayPendingAnswerDraft
     @State private var isSubmitting = false
     @State private var errorMessage: String?
-
-    init(
-        presentation: RelayPendingInteractionPresentation,
-        openInCodex: @escaping () async throws -> Void,
-        submitAnswers: @escaping
-            (String, [String: [String]]) async throws -> Void,
-        submitDecision: @escaping
-            (String, RelayPendingApprovalDecision) async throws -> Void
-    ) {
-        self.presentation = presentation
-        self.openInCodex = openInCodex
-        self.submitAnswers = submitAnswers
-        self.submitDecision = submitDecision
-        _answerDraft = State(
-            initialValue: RelayPendingAnswerDraft(
-                interactionID: presentation.interaction?.id
-            )
-        )
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -320,6 +328,9 @@ private struct RelayPendingInteractionView: View {
                 questionControls
             case .reviewApproval:
                 approvalControls
+            case .resolving:
+                Label("Resolving in Codex", systemImage: "hourglass")
+                    .font(.callout)
             }
 
             if let errorMessage {
@@ -335,12 +346,10 @@ private struct RelayPendingInteractionView: View {
         )
         .disabled(isSubmitting)
         .onChange(of: presentation.interaction?.id) { _, interactionID in
-            answerDraft.synchronize(interactionID: interactionID)
             isSubmitting = false
             errorMessage = nil
-        }
-        .onDisappear {
-            answerDraft.clear()
+            guard let interactionID else { return }
+            _ = drafts.pendingDraft(interactionID: interactionID)
         }
     }
 
@@ -361,23 +370,41 @@ private struct RelayPendingInteractionView: View {
                             for: question
                         )
                     ) { entry in
+                        let isSelected =
+                            RelayPendingInteractionPresentation.isSelected(
+                                entry,
+                                for: question,
+                                draft: answerDraft
+                            )
                         Button {
-                            answerDraft.setAnswer(
+                            drafts.setPendingAnswer(
                                 entry.option.label,
-                                for: question.id
+                                questionID: question.id,
+                                interactionID: interaction.id
                             )
                         } label: {
-                            VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.option.label)
                                 Text(entry.option.description)
                                     .font(.caption)
                                     .foregroundStyle(
                                         RelayPalette.secondaryText
                                     )
+                                }
+                                Spacer()
+                                if isSelected {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .accessibilityHidden(true)
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.bordered)
+                        .tint(isSelected ? RelayPalette.accent : nil)
+                        .accessibilityAddTraits(
+                            isSelected ? .isSelected : []
+                        )
                     }
 
                     if question.options.isEmpty || question.allowsOther {
@@ -386,10 +413,18 @@ private struct RelayPendingInteractionView: View {
                                 "Answer",
                                 text: answerBinding(for: question.id)
                             )
+                            .accessibilityLabel(
+                                RelayPendingInteractionPresentation
+                                    .answerAccessibilityLabel(for: question)
+                            )
                         } else {
                             TextField(
                                 "Answer",
                                 text: answerBinding(for: question.id)
+                            )
+                            .accessibilityLabel(
+                                RelayPendingInteractionPresentation
+                                    .answerAccessibilityLabel(for: question)
                             )
                         }
                     }
@@ -400,12 +435,20 @@ private struct RelayPendingInteractionView: View {
                 perform {
                     let payload = answerDraft.payload(questions: questions)
                     try await submitAnswers(interaction.id, payload)
+                    drafts.discardPendingAnswers(
+                        interactionID: interaction.id
+                    )
                 }
             }
             .buttonStyle(.borderedProminent)
             .disabled(
                 !answerDraft.canSubmit(questions: questions)
             )
+
+            Button("Cancel answer", systemImage: "xmark") {
+                drafts.discardPendingAnswers(interactionID: interaction.id)
+            }
+            .buttonStyle(.bordered)
         }
     }
 
@@ -448,10 +491,26 @@ private struct RelayPendingInteractionView: View {
     }
 
     private func answerBinding(for questionID: String) -> Binding<String> {
-        Binding(
+        guard let interactionID = presentation.interaction?.id else {
+            return .constant("")
+        }
+        return Binding(
             get: { answerDraft.answer(for: questionID) },
-            set: { answerDraft.setAnswer($0, for: questionID) }
+            set: {
+                drafts.setPendingAnswer(
+                    $0,
+                    questionID: questionID,
+                    interactionID: interactionID
+                )
+            }
         )
+    }
+
+    private var answerDraft: RelayPendingAnswerDraft {
+        guard let interactionID = presentation.interaction?.id else {
+            return RelayPendingAnswerDraft(interactionID: nil)
+        }
+        return drafts.pendingDraft(interactionID: interactionID)
     }
 
     private func perform(

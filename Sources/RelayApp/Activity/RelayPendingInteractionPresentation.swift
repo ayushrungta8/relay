@@ -4,6 +4,7 @@ struct RelayPendingInteractionPresentation: Equatable {
     enum Action: Equatable {
         case answerQuestions
         case reviewApproval
+        case resolving
         case openInCodex
     }
 
@@ -12,7 +13,9 @@ struct RelayPendingInteractionPresentation: Equatable {
     let explanation: String
 
     var isRelayOwned: Bool { interaction != nil }
-    var allowsTaskManagement: Bool { isRelayOwned }
+    var allowsTaskManagement: Bool {
+        interaction?.state == .pending
+    }
 
     init(
         task: RelayTaskActivity,
@@ -22,6 +25,11 @@ struct RelayPendingInteractionPresentation: Equatable {
         if let ownedInteraction,
            ownedInteraction.threadID == task.id {
             interaction = ownedInteraction
+            if ownedInteraction.state == .resolving {
+                action = .resolving
+                explanation = "Relay submitted your response and is waiting for Codex to continue."
+                return
+            }
             switch ownedInteraction.kind {
             case .questions:
                 action = .answerQuestions
@@ -47,6 +55,20 @@ struct RelayPendingInteractionPresentation: Equatable {
             )
         }
     }
+
+    static func isSelected(
+        _ entry: OptionEntry,
+        for question: RelayPendingQuestion,
+        draft: RelayPendingAnswerDraft
+    ) -> Bool {
+        draft.answer(for: question.id) == entry.option.label
+    }
+
+    static func answerAccessibilityLabel(
+        for question: RelayPendingQuestion
+    ) -> String {
+        "\(question.header), answer"
+    }
 }
 
 extension RelayPendingInteractionPresentation {
@@ -58,50 +80,5 @@ extension RelayPendingInteractionPresentation {
     struct OptionEntry: Identifiable, Equatable {
         let id: OptionID
         let option: RelayPendingQuestionOption
-    }
-}
-
-struct RelayPendingAnswerDraft: Equatable {
-    private(set) var interactionID: String?
-    private var answers: [String: String] = [:]
-
-    init(interactionID: String?) {
-        self.interactionID = interactionID
-    }
-
-    mutating func synchronize(interactionID: String?) {
-        guard self.interactionID != interactionID else { return }
-        clear()
-        self.interactionID = interactionID
-    }
-
-    mutating func clear() {
-        answers.removeAll(keepingCapacity: false)
-    }
-
-    mutating func setAnswer(_ answer: String, for questionID: String) {
-        answers[questionID] = answer
-    }
-
-    func answer(for questionID: String) -> String {
-        answers[questionID] ?? ""
-    }
-
-    func canSubmit(questions: [RelayPendingQuestion]) -> Bool {
-        questions.allSatisfy { question in
-            !answer(for: question.id)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .isEmpty
-        }
-    }
-
-    func payload(
-        questions: [RelayPendingQuestion]
-    ) -> [String: [String]] {
-        Dictionary(
-            uniqueKeysWithValues: questions.map {
-                ($0.id, [answer(for: $0.id)])
-            }
-        )
     }
 }

@@ -6,6 +6,7 @@ struct RelayCompactActivityView: View {
     let capacity: RelayCapacityPresentation
     let tokenUsageByThreadID: [String: RelayThreadTokenUsage]
     let actions: RelayTaskActions
+    let drafts: RelayPanelDraftStore
     let expand: () -> Void
 
     var body: some View {
@@ -53,6 +54,7 @@ struct RelayCompactActivityView: View {
                                     tokenUsageByThreadID[task.id],
                                 layout: .compact,
                                 actions: actions,
+                                drafts: drafts,
                                 primaryAction: expand
                             )
                         }

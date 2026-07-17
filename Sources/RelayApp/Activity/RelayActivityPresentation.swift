@@ -10,6 +10,16 @@ struct RelayActivityPresentation {
         attentionTasks + runningTasks + recentTasks
     }
 
+    var automaticPeekTrigger: RelayAutomaticPeekTrigger? {
+        guard let task = attentionTasks.first else { return nil }
+        return RelayAutomaticPeekTrigger(
+            threadID: task.id,
+            state: task.attentionState,
+            updatedAt: task.thread.updatedAt,
+            hasUnreadCompletion: task.hasUnreadCompletion
+        )
+    }
+
     var peekCopy: String {
         if attentionTasks.count > 1 {
             return "\(attentionTasks.count) tasks need attention"

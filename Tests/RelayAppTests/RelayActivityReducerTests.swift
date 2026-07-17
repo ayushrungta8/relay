@@ -193,6 +193,21 @@ struct RelayActivityReducerTests {
         )
     }
 
+    @Test
+    func snapshotClearsCurrentSelectionButRetainsLastInteraction() {
+        var reducer = RelayActivityReducer()
+        reducer.merge(snapshot: .init(
+            tasks: [activity(id: "worker", updatedAt: 1, status: .active)],
+            usage: nil
+        ))
+        reducer.select(threadID: "worker")
+
+        reducer.merge(snapshot: .init(tasks: [], usage: nil))
+
+        #expect(reducer.selectedThreadID == nil)
+        #expect(reducer.lastSelectedThreadID == "worker")
+    }
+
     private func activity(
         id: String,
         updatedAt: Int,

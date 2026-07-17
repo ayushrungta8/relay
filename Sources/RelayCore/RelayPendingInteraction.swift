@@ -5,18 +5,26 @@ public struct RelayPendingInteraction: Sendable, Equatable, Identifiable {
     public let threadID: String
     public let turnID: String?
     public let kind: RelayPendingInteractionKind
+    public let state: RelayPendingInteractionState
 
     public init(
         id: String,
         threadID: String,
         turnID: String?,
-        kind: RelayPendingInteractionKind
+        kind: RelayPendingInteractionKind,
+        state: RelayPendingInteractionState = .pending
     ) {
         self.id = id
         self.threadID = threadID
         self.turnID = turnID
         self.kind = kind
+        self.state = state
     }
+}
+
+public enum RelayPendingInteractionState: Sendable, Equatable {
+    case pending
+    case resolving
 }
 
 public enum RelayPendingInteractionKind: Sendable, Equatable {

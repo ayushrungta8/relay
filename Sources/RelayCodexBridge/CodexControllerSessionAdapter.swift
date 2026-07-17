@@ -365,6 +365,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
         case "item/agentMessage/delta":
             if let delta = params["delta"]?.stringValue {
                 activeTurn?.accumulatedText += delta
+                activeTurn?.continuation.yield(.textDelta(delta))
             }
         case "turn/completed":
             completeActiveTurn(params: params)

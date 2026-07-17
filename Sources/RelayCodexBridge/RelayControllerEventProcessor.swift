@@ -6,9 +6,11 @@ public enum RelayControllerEventProcessor {
         from events:
             AsyncThrowingStream<RelayControllerEvent, any Error>,
         session: any RelayControllerSession,
-        router: RelayToolCallRouter
+        router: RelayToolCallRouter,
+        onAnswerUpdate: @escaping @Sendable (String) async -> Void = { _ in }
     ) async throws -> String {
         var finalText: String?
+        var accumulatedText = ""
 
         for try await event in events {
             switch event {
@@ -18,8 +20,14 @@ public enum RelayControllerEventProcessor {
                     argumentsJSON: call.argumentsJSON
                 )
                 try await session.completeToolCall(call, with: result)
+            case let .textDelta(delta):
+                accumulatedText += delta
+                await onAnswerUpdate(accumulatedText)
             case let .finalText(text):
                 finalText = text
+                if text != accumulatedText {
+                    await onAnswerUpdate(text)
+                }
             }
         }
 
