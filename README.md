@@ -65,6 +65,19 @@ On first use, macOS may ask for:
 - **Microphone** and **Speech Recognition**, used only while you hold the push-to-talk shortcut
 - **Accessibility**, used when Relay needs to bring Codex forward or hand a follow-up to the desktop app
 
+## Updates
+
+Relay checks for signed updates automatically. When one is available, a quiet
+banner in the expanded activity center offers **Install & Relaunch** or
+**Later**. You can also use **Relay → Check for Updates…** whenever you want to
+check immediately. After the first Sparkle-enabled release is installed,
+updates download, replace Relay, and relaunch without another GitHub download
+or DMG installation.
+
+The initial unsigned installation still requires the one-time Gatekeeper step
+above. Update archives and the update feed are independently protected by a
+Sparkle EdDSA signature.
+
 ## Shortcuts
 
 | Shortcut | Action |

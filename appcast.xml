@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+-->
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Relay updates</title>
+        <item>
+            <title>1.1.0</title>
+            <pubDate>Sat, 18 Jul 2026 15:23:51 +0400</pubDate>
+            <link>https://github.com/ayushrungta8/relay</link>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/ayushrungta8/relay/releases/download/v1.1.0/Relay-macos-universal.dmg" length="5699918" type="application/octet-stream" sparkle:edSignature="ZlXbIpqR2+Y86A/XsTTQ5LRywTRgMpW70rSnHLGAKtVaWvL05aHziiGXPRd1+qU2sVniybad1NPneho+dyIcAg=="/>
+        </item>
+    </channel>
+</rss>
+<!-- sparkle-signatures:
+edSignature: ZrZ+Q/chjbopGkg5pg/w9fpad/v8I7IzLCJYmQbW2b7qd9vAbhTuAc2FE3lymFNIgzrxUrgJ7QxSM8sG2W0HAA==
+length: 1126
+-->
