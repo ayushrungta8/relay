@@ -7,6 +7,7 @@ final class RelayNotchPanelController {
     private let panel: RelayNotchPanel
     private let presentationState: RelayNotchPanelState
     private let hostingView: NSHostingView<RelayNotchPanelHost>
+    private let settings: RelaySettingsStore
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
     private var globalMouseMoveMonitor: Any?
@@ -42,7 +43,8 @@ final class RelayNotchPanelController {
     }
     var shouldDismissOnOutsideClick: () -> Bool
 
-    init(model: RelayAppModel) {
+    init(model: RelayAppModel, settings: RelaySettingsStore) {
+        self.settings = settings
         let presentationState = RelayNotchPanelState()
         self.presentationState = presentationState
         isVoiceSetupPresented = { model.voiceSetup != nil }
@@ -131,6 +133,28 @@ final class RelayNotchPanelController {
             RelayApplicationPresentation.launchPresentation,
             on: screenContainingPointer()
         )
+    }
+
+    func applySettingsChange(_ change: RelaySettingsChange) {
+        switch change {
+        case let .followsPointerAcrossDisplays(enabled):
+            if enabled {
+                synchronizePointerDisplayFollowing()
+            } else {
+                displayFollower.cancel()
+                relocationGeneration &+= 1
+            }
+        case .showAtLaunch,
+             .automaticPeeks,
+             .speaksVoiceResponses,
+             .speechVoiceIdentifier,
+             .shortcut,
+             .automaticallyChecksForUpdates,
+             .updateCadence,
+             .autoApplyResetCredits,
+             .restoredDefaults:
+            break
+        }
     }
 
     func dismiss() {
@@ -289,6 +313,10 @@ final class RelayNotchPanelController {
     }
 
     private func synchronizePointerDisplayFollowing() {
+        guard settings.followsPointerAcrossDisplays else {
+            displayFollower.cancel()
+            return
+        }
         let pointerIdentity = screenAtPointer().flatMap {
             RelayScreenIdentity(screen: $0)
         }
@@ -310,6 +338,7 @@ final class RelayNotchPanelController {
 
     private func relocateCompact(to identity: RelayScreenIdentity) {
         guard
+            settings.followsPointerAcrossDisplays,
             presentation == .compact,
             identity != currentScreenIdentity,
             let pointerScreen = screenAtPointer(),

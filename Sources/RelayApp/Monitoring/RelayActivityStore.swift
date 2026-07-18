@@ -30,6 +30,7 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private let state = RelayActivityState()
 
     private let defaults: UserDefaults
+    private let settings: RelaySettingsStore?
     private static let autoApplyDefaultsKey =
         "relay.autoApplyResetCreditBeforeExpiry"
     static let autoApplyLeadTime: TimeInterval = 3_600
@@ -64,6 +65,9 @@ final class RelayActivityStore: RelaySupervisionStateReading {
                 autoApplyResetCredits,
                 forKey: Self.autoApplyDefaultsKey
             )
+            if settings?.autoApplyResetCredits != autoApplyResetCredits {
+                settings?.autoApplyResetCredits = autoApplyResetCredits
+            }
             scheduleAutoApply()
         }
     }
@@ -77,7 +81,8 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         sleep: @escaping Sleep = { duration in
             try await Task.sleep(for: duration)
         },
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        settings: RelaySettingsStore? = nil
     ) {
         self.monitoring = monitoring
         self.tasks = tasks
@@ -85,9 +90,9 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         self.connect = connect
         self.sleep = sleep
         self.defaults = defaults
-        autoApplyResetCredits = defaults.bool(
-            forKey: Self.autoApplyDefaultsKey
-        )
+        self.settings = settings
+        autoApplyResetCredits = settings?.autoApplyResetCredits
+            ?? defaults.bool(forKey: Self.autoApplyDefaultsKey)
     }
 
     func start() async {

@@ -26,6 +26,13 @@ final class RelayUpdateController {
     private var updateChoice: ((SPUUserUpdateChoice) -> Void)?
     private var offeredVersion: String?
     private var hideStatusTask: Task<Void, Never>?
+    private weak var settings: RelaySettingsStore?
+
+    var installedVersion: String {
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "Unknown"
+    }
 
     private init() {
         let userDriver = RelayUpdateUserDriver()
@@ -50,6 +57,28 @@ final class RelayUpdateController {
         guard updateChoice == nil, !updater.sessionInProgress else { return }
         presentation = .checking
         updater.checkForUpdates()
+    }
+
+    func configure(settings: RelaySettingsStore) {
+        self.settings = settings
+        synchronizeScheduler(with: settings)
+    }
+
+    func applySettingsChange(_ change: RelaySettingsChange) {
+        switch change {
+        case .automaticallyChecksForUpdates, .updateCadence,
+             .restoredDefaults:
+            guard let settings else { return }
+            synchronizeScheduler(with: settings)
+        case .showAtLaunch,
+             .automaticPeeks,
+             .followsPointerAcrossDisplays,
+             .speaksVoiceResponses,
+             .speechVoiceIdentifier,
+             .shortcut,
+             .autoApplyResetCredits:
+            break
+        }
     }
 
     func installAvailableUpdate() {
@@ -84,7 +113,8 @@ final class RelayUpdateController {
     ) {
         reply(
             SUUpdatePermissionResponse(
-                automaticUpdateChecks: true,
+                automaticUpdateChecks:
+                    settings?.automaticallyChecksForUpdates ?? true,
                 sendSystemProfile: false
             )
         )
@@ -185,6 +215,12 @@ final class RelayUpdateController {
             guard !Task.isCancelled else { return }
             self?.presentation = .idle
         }
+    }
+
+    private func synchronizeScheduler(with settings: RelaySettingsStore) {
+        updater.automaticallyChecksForUpdates =
+            settings.automaticallyChecksForUpdates
+        updater.updateCheckInterval = settings.updateCadence.interval
     }
 }
 

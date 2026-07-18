@@ -47,7 +47,8 @@ final class RelayAppRuntime {
             controllerThreadStore: controllerThreadStore,
             connect: {
                 try await rpc.start()
-            }
+            },
+            settings: settings
         )
         let pendingInteractionBroker = RelayPendingInteractionBroker(
             rpc: rpc,
@@ -126,12 +127,13 @@ final class RelayAppRuntime {
                 enabled: settings.speaksVoiceResponses,
                 voiceIdentifier: settings.speechVoiceIdentifier
             )
+        case let .autoApplyResetCredits(enabled):
+            activityStore.autoApplyResetCredits = enabled
         case .showAtLaunch,
              .automaticPeeks,
              .followsPointerAcrossDisplays,
              .automaticallyChecksForUpdates,
              .updateCadence,
-             .autoApplyResetCredits,
              .restoredDefaults:
             break
         }

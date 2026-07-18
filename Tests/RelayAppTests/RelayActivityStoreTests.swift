@@ -377,6 +377,25 @@ struct RelayActivityStoreTests {
 extension RelayActivityStoreTests {
     @MainActor
     @Test
+    func resetCreditAutomationSharesTheSettingsValue() {
+        let defaults = ephemeralDefaults()
+        let settings = RelaySettingsStore(defaults: defaults)
+        let store = RelayActivityStore(
+            monitoring: MonitoringStub(results: []),
+            tasks: TaskOperationsStub(),
+            connect: {},
+            defaults: defaults,
+            settings: settings
+        )
+
+        store.autoApplyResetCredits = true
+
+        #expect(settings.autoApplyResetCredits)
+        #expect(store.autoApplyResetCredits)
+    }
+
+    @MainActor
+    @Test
     func applyingResetCreditConsumesAndRefreshes() async throws {
         let monitoring = MonitoringStub(
             results: [

@@ -6,3 +6,12 @@ struct RelayAutomaticPeekTrigger: Equatable, Sendable {
     let updatedAt: Int
     let hasUnreadCompletion: Bool
 }
+
+enum RelayAutomaticPeekPolicy {
+    static func trigger(
+        _ candidate: RelayAutomaticPeekTrigger?,
+        enabled: Bool
+    ) -> RelayAutomaticPeekTrigger? {
+        enabled ? candidate : nil
+    }
+}
