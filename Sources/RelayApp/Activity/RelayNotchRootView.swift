@@ -14,11 +14,15 @@ struct RelayNotchRootView: View {
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
     let voiceActivity: RelayVoiceActivity
+    let voiceSetup: RelayVoiceSetupPresentation?
+    let isResolvingVoiceSetup: Bool
     let chatMessages: [RelayChatMessage]
     let connection: RelayConnectionPresentation?
     let safeArea: RelayNotchSafeArea
     let submitCommand: () -> Void
     let retryConnection: () -> Void
+    let performVoiceSetupPrimaryAction: () -> Void
+    let dismissVoiceSetup: () -> Void
     let submitPendingAnswers:
         (String, [String: [String]]) async throws -> Void
     let submitPendingDecision:
@@ -82,6 +86,24 @@ struct RelayNotchRootView: View {
                 }
             }
             .transition(contentTransition)
+
+            if presentation == .expanded, let voiceSetup {
+                Color.black.opacity(0.58)
+                    .accessibilityHidden(true)
+
+                VStack {
+                    Spacer(minLength: safeArea.topInset + 24)
+                    RelayVoiceSetupView(
+                        presentation: voiceSetup,
+                        isResolving: isResolvingVoiceSetup,
+                        performPrimaryAction: performVoiceSetupPrimaryAction,
+                        dismiss: dismissVoiceSetup
+                    )
+                    .padding(.horizontal, 24)
+                    Spacer(minLength: 24)
+                }
+                .transition(voiceSetupTransition)
+            }
         }
         .clipShape(notchShape)
         .overlay {
@@ -93,6 +115,7 @@ struct RelayNotchRootView: View {
         .contentShape(notchShape)
         .tint(RelayPalette.accent)
         .animation(contentAnimation, value: presentation)
+        .animation(contentAnimation, value: voiceSetup)
         .onHover(perform: pointerHoverChanged)
         .onChange(of: activity.automaticPeekTrigger, initial: true) {
             _, trigger in
@@ -134,6 +157,17 @@ struct RelayNotchRootView: View {
             .opacity.combined(
                 with: .scale(scale: 0.985, anchor: .top)
             )
+        }
+    }
+
+    private var voiceSetupTransition: AnyTransition {
+        switch RelayAccessibilityContract.motionStyle(
+            reduceMotion: reduceMotion
+        ) {
+        case .crossfade:
+            .opacity
+        case .anchoredMovement:
+            .opacity.combined(with: .scale(scale: 0.98))
         }
     }
 

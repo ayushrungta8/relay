@@ -13,6 +13,8 @@ final class RelayNotchPanelController {
     private var localClickMonitor: Any?
     private var currentScreen: NSScreen?
     private var hoverCollapseTask: Task<Void, Never>?
+    private let isVoiceSetupPresented: () -> Bool
+    private let dismissVoiceSetup: () -> Void
     private lazy var presentationCoordinator =
         RelayPanelPresentationCoordinator(
             presentPeek: { [weak self] in
@@ -36,6 +38,8 @@ final class RelayNotchPanelController {
     init(model: RelayAppModel) {
         let presentationState = RelayNotchPanelState()
         self.presentationState = presentationState
+        isVoiceSetupPresented = { model.voiceSetup != nil }
+        dismissVoiceSetup = model.dismissVoiceSetup
         shouldDismissOnOutsideClick = { presentationState.drafts.canDismiss }
         let hostingView = NSHostingView(
             rootView: RelayNotchPanelHost(
@@ -246,6 +250,10 @@ final class RelayNotchPanelController {
     }
 
     private func collapseOneLevel() {
+        if isVoiceSetupPresented() {
+            dismissVoiceSetup()
+            return
+        }
         guard presentationState.drafts.canDismiss else { return }
         let target = presentation.collapsed
         if target == .hidden {
@@ -289,6 +297,10 @@ final class RelayNotchPanelController {
         else {
             return
         }
+        if isVoiceSetupPresented() {
+            dismissVoiceSetup()
+            return
+        }
         if presentation == .expanded {
             present(.compact, on: currentScreen)
         } else if presentation == .peek {
@@ -310,6 +322,8 @@ final class RelayNotchPanelController {
             return
         }
 
+        guard !isVoiceSetupPresented() else { return }
+
         hoverCollapseTask = Task { [weak self] in
             do {
                 try await Task.sleep(
@@ -318,7 +332,13 @@ final class RelayNotchPanelController {
             } catch {
                 return
             }
-            guard let self, !Task.isCancelled else { return }
+            guard
+                let self,
+                !Task.isCancelled,
+                !isVoiceSetupPresented()
+            else {
+                return
+            }
             let pointerRemainsInside = activePanel?.frame.contains(
                 NSEvent.mouseLocation
             ) ?? false

@@ -225,6 +225,30 @@ struct RelayFinalFixContractsTests {
 
         #expect(peekCount == 2)
     }
+
+    @Test
+    func voiceSetupUsesDedicatedExpandedPresentation() throws {
+        let root = try projectSource(
+            "Sources/RelayApp/Activity/RelayNotchRootView.swift"
+        )
+        let host = try projectSource(
+            "Sources/RelayApp/Notch/RelayNotchPanelHost.swift"
+        )
+
+        #expect(root.contains("RelayVoiceSetupView("))
+        #expect(host.contains("state.requestPresentation(.expanded)"))
+    }
+}
+
+private func projectSource(_ relativePath: String) throws -> String {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    return try String(
+        contentsOf: root.appendingPathComponent(relativePath),
+        encoding: .utf8
+    )
 }
 
 private actor PeekSleeper {

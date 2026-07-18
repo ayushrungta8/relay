@@ -24,17 +24,25 @@ struct RelayNotchPanelHost: View {
             commandText: $model.commandText,
             composerPhase: model.composerPhase,
             voiceActivity: model.voiceActivity,
+            voiceSetup: model.voiceSetup,
+            isResolvingVoiceSetup: model.isResolvingVoiceSetup,
             chatMessages: model.chatMessages,
             connection: connectionPresentation,
             safeArea: state.notchSafeArea,
             submitCommand: submitCommand,
             retryConnection: retryConnection,
+            performVoiceSetupPrimaryAction: performVoiceSetupPrimaryAction,
+            dismissVoiceSetup: model.dismissVoiceSetup,
             submitPendingAnswers: submitPendingAnswers,
             submitPendingDecision: submitPendingDecision,
             requestPresentation: state.requestPresentation,
             pointerHoverChanged: state.pointerHoverChanged,
             priorityActivityChanged: state.priorityActivityChanged
         )
+        .onChange(of: model.voiceSetup, initial: true) { _, voiceSetup in
+            guard voiceSetup != nil else { return }
+            state.requestPresentation(.expanded)
+        }
     }
 
     private var activityPresentation: RelayActivityPresentation {
@@ -109,6 +117,10 @@ struct RelayNotchPanelHost: View {
 
     private func retryConnection() {
         Task { await model.activityStore?.retryConnection() }
+    }
+
+    private func performVoiceSetupPrimaryAction() {
+        Task { await model.performVoiceSetupPrimaryAction() }
     }
 
     private func submitPendingAnswers(
