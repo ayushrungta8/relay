@@ -20,7 +20,9 @@ struct RelayNotchPanelHost: View {
             actions: taskActions,
             usageActions: usageActions,
             autoApplyResetCredits:
-                model.activityStore?.autoApplyResetCredits ?? false,
+                model.settings.autoApplyResetCredits,
+            settings: model.settings,
+            settingsErrorMessage: model.settingsErrorMessage,
             commandText: $model.commandText,
             composerPhase: model.composerPhase,
             voiceActivity: model.voiceActivity,
@@ -83,7 +85,7 @@ struct RelayNotchPanelHost: View {
         RelayUsageActions(
             applyResetCredit: applyResetCredit,
             setAutoApplyResetCredits: { enabled in
-                model.activityStore?.autoApplyResetCredits = enabled
+                model.settings.autoApplyResetCredits = enabled
             }
         )
     }

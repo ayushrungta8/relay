@@ -232,6 +232,8 @@ struct RelayPanelPresentationTests {
                 setAutoApplyResetCredits: { _ in }
             ),
             autoApplyResetCredits: false,
+            settings: RelaySettingsStore(),
+            settingsErrorMessage: nil,
             selectedSection: .constant(.activity),
             commandText: .constant(""),
             composerPhase: .idle,

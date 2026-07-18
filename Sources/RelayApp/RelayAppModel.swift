@@ -154,7 +154,9 @@ final class RelayAppModel {
         guard let runtime else { return }
         do {
             try runtime.applySettingsChange(change)
-            settingsErrorMessage = nil
+            if change != .restoredDefaults {
+                settingsErrorMessage = nil
+            }
         } catch {
             if case .shortcut = change,
                let activeShortcut = runtime.activeShortcut {

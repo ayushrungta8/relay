@@ -12,7 +12,7 @@ struct RelayExpandedSectionPicker: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .frame(width: 270)
+        .frame(width: 360)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity)
         .background(RelayPalette.shell)

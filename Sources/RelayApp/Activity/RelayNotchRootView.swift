@@ -11,6 +11,8 @@ struct RelayNotchRootView: View {
     let actions: RelayTaskActions
     let usageActions: RelayUsageActions
     let autoApplyResetCredits: Bool
+    let settings: RelaySettingsStore
+    let settingsErrorMessage: String?
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
     let voiceActivity: RelayVoiceActivity
@@ -71,6 +73,8 @@ struct RelayNotchRootView: View {
                         actions: actions,
                         usageActions: usageActions,
                         autoApplyResetCredits: autoApplyResetCredits,
+                        settings: settings,
+                        settingsErrorMessage: settingsErrorMessage,
                         selectedSection: $selectedSection,
                         commandText: $commandText,
                         composerPhase: composerPhase,
@@ -115,9 +119,8 @@ struct RelayNotchRootView: View {
         .tint(RelayPalette.accent)
         .animation(contentAnimation, value: voiceSetup)
         .onHover(perform: pointerHoverChanged)
-        .onChange(of: activity.automaticPeekTrigger, initial: true) {
-            _, trigger in
-            priorityActivityChanged(trigger)
+        .onChange(of: automaticPeekTrigger, initial: true) {
+            _, trigger in priorityActivityChanged(trigger)
         }
         .onChange(of: chatMessages.count) { previousCount, count in
             selectedSection = RelayExpandedSection.selection(
@@ -132,6 +135,13 @@ struct RelayNotchRootView: View {
                 liveInteractionIDs: owners.interactionIDs
             )
         }
+    }
+
+    private var automaticPeekTrigger: RelayAutomaticPeekTrigger? {
+        RelayAutomaticPeekPolicy.trigger(
+            activity.automaticPeekTrigger,
+            enabled: settings.automaticPeeks
+        )
     }
 
     private var contentAnimation: Animation {

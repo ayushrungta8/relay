@@ -10,6 +10,8 @@ struct RelayExpandedActivityView: View {
     let actions: RelayTaskActions
     let usageActions: RelayUsageActions
     let autoApplyResetCredits: Bool
+    let settings: RelaySettingsStore
+    let settingsErrorMessage: String?
     @Binding var selectedSection: RelayExpandedSection
     @Binding var commandText: String
     let composerPhase: RelayComposerPhase
@@ -77,6 +79,13 @@ struct RelayExpandedActivityView: View {
                     capacity: capacity,
                     autoApplyResetCredits: autoApplyResetCredits,
                     actions: usageActions
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .settings:
+                RelaySettingsView(
+                    settings: settings,
+                    updateController: updateController,
+                    shortcutError: settingsErrorMessage
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
