@@ -1,22 +1,17 @@
 import AppKit
 
 final class RelayNotchPanel: NSPanel {
-    private let activationPolicyAllowsActivation: Bool
     private(set) var relayPresentation: RelayPanelPresentation
     var escapeHandler: (() -> Void)?
 
     init(initialPresentation: RelayPanelPresentation) {
-        activationPolicyAllowsActivation =
-            initialPresentation.allowsActivation
         relayPresentation = initialPresentation
 
-        var styleMask: NSWindow.StyleMask = [
+        let styleMask: NSWindow.StyleMask = [
             .borderless,
             .fullSizeContentView,
+            .nonactivatingPanel,
         ]
-        if !activationPolicyAllowsActivation {
-            styleMask.insert(.nonactivatingPanel)
-        }
 
         super.init(
             contentRect: .zero,
@@ -30,8 +25,7 @@ final class RelayNotchPanel: NSPanel {
     }
 
     override var canBecomeKey: Bool {
-        activationPolicyAllowsActivation
-            && relayPresentation.allowsActivation
+        relayPresentation.allowsActivation
     }
 
     override var canBecomeMain: Bool {
@@ -51,11 +45,6 @@ final class RelayNotchPanel: NSPanel {
     func updatePresentation(
         _ presentation: RelayPanelPresentation
     ) {
-        precondition(
-            presentation.allowsActivation
-                == activationPolicyAllowsActivation,
-            "A Relay panel cannot change its activation policy."
-        )
         relayPresentation = presentation
     }
 
