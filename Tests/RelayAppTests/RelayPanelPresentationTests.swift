@@ -110,6 +110,22 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func screenIdentityRoundTripsTheMainDisplay() throws {
+        let screen = try #require(NSScreen.main)
+        let identity = try #require(RelayScreenIdentity(screen: screen))
+
+        #expect(identity.resolve() === screen)
+    }
+
+    @Test
+    func pointerFollowingUsesApprovedTiming() {
+        #expect(
+            RelayPointerDisplayFollower.dwellDelay == .milliseconds(500)
+        )
+        #expect(RelayPointerDisplayFollower.relocationDuration == 0.16)
+    }
+
+    @Test
     func floatingNotchPanelRendersAboveFullscreenWindows() {
         let panel = RelayNotchPanel(initialPresentation: .expanded)
 

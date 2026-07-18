@@ -9,10 +9,19 @@ final class RelayNotchPanelController {
     private let hostingView: NSHostingView<RelayNotchPanelHost>
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
-    private var currentScreen: NSScreen?
+    private var globalMouseMoveMonitor: Any?
+    private var localMouseMoveMonitor: Any?
+    private var screenParametersObserver: NSObjectProtocol?
+    private var currentScreenIdentity: RelayScreenIdentity?
+    private var relocationGeneration = 0
     private var hoverCollapseTask: Task<Void, Never>?
     private let isVoiceSetupPresented: () -> Bool
     private let dismissVoiceSetup: () -> Void
+    private lazy var displayFollower = RelayPointerDisplayFollower(
+        relocate: { [weak self] identity in
+            self?.relocateCompact(to: identity)
+        }
+    )
     private lazy var presentationCoordinator =
         RelayPanelPresentationCoordinator(
             presentPeek: { [weak self] in
@@ -20,7 +29,7 @@ final class RelayNotchPanelController {
                       presentation == .hidden || presentation == .peek else {
                     return
                 }
-                present(.peek)
+                present(.peek, on: screenContainingPointer())
             },
             dismissPeek: { [weak self] in
                 guard let self, presentation == .peek else { return }
@@ -52,7 +61,7 @@ final class RelayNotchPanelController {
         )
         presentationState.presentationRequestHandler = { [weak self] value in
             guard let self else { return }
-            self.present(value, on: currentScreen)
+            self.present(value, on: currentScreenIdentity?.resolve())
         }
         presentationState.priorityActivityHandler = { [weak self] trigger in
             self?.presentationCoordinator.observe(trigger)
@@ -62,6 +71,7 @@ final class RelayNotchPanelController {
         }
         configurePanel(panel)
         panel.contentView = hostingView
+        installPointerDisplayMonitoring()
     }
 
     func present(
@@ -75,6 +85,9 @@ final class RelayNotchPanelController {
         guard let targetScreen = screen ?? screenContainingActiveWindow() else {
             return
         }
+
+        relocationGeneration &+= 1
+        panel.alphaValue = 1
 
         let frame = RelayNotchGeometry.frame(
             for: presentation,
@@ -91,7 +104,7 @@ final class RelayNotchPanelController {
         orderPanel(panel, for: presentation)
         presentationState.notchSafeArea = notchSafeArea(for: targetScreen)
         presentationState.presentation = presentation
-        currentScreen = targetScreen
+        currentScreenIdentity = RelayScreenIdentity(screen: targetScreen)
         apply(
             frame: frame,
             transition: presentation.transition(
@@ -100,6 +113,7 @@ final class RelayNotchPanelController {
             )
         )
         installOutsideClickMonitoring()
+        synchronizePointerDisplayFollowing()
     }
 
     func toggle(on screen: NSScreen? = nil) {
@@ -124,7 +138,8 @@ final class RelayNotchPanelController {
         presentationState.presentation = .hidden
         panel.updatePresentation(.hidden)
         panel.orderOut(nil)
-        currentScreen = nil
+        currentScreenIdentity = nil
+        displayFollower.cancel()
         removeOutsideClickMonitoring()
     }
 
@@ -218,7 +233,7 @@ final class RelayNotchPanelController {
         if target == .hidden {
             dismiss()
         } else {
-            present(target, on: currentScreen)
+            present(target, on: currentScreenIdentity?.resolve())
         }
     }
 
@@ -248,6 +263,107 @@ final class RelayNotchPanelController {
         }
     }
 
+    private func installPointerDisplayMonitoring() {
+        globalMouseMoveMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: .mouseMoved
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.synchronizePointerDisplayFollowing()
+            }
+        }
+        localMouseMoveMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .mouseMoved
+        ) { [weak self] event in
+            self?.synchronizePointerDisplayFollowing()
+            return event
+        }
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.screenParametersDidChange()
+            }
+        }
+    }
+
+    private func synchronizePointerDisplayFollowing() {
+        let pointerIdentity = screenAtPointer().flatMap {
+            RelayScreenIdentity(screen: $0)
+        }
+        displayFollower.observe(
+            pointerDisplay: pointerIdentity,
+            currentDisplay: currentScreenIdentity,
+            presentation: presentation
+        )
+    }
+
+    private func screenParametersDidChange() {
+        guard presentation != .hidden else { return }
+        if let screen = currentScreenIdentity?.resolve() {
+            present(presentation, on: screen)
+        } else if let fallback = screenContainingPointer() ?? NSScreen.main {
+            present(presentation, on: fallback)
+        }
+    }
+
+    private func relocateCompact(to identity: RelayScreenIdentity) {
+        guard
+            presentation == .compact,
+            identity != currentScreenIdentity,
+            let pointerScreen = screenAtPointer(),
+            RelayScreenIdentity(screen: pointerScreen) == identity,
+            let targetScreen = identity.resolve()
+        else {
+            synchronizePointerDisplayFollowing()
+            return
+        }
+
+        displayFollower.cancel()
+        relocationGeneration &+= 1
+        let generation = relocationGeneration
+        currentScreenIdentity = identity
+        synchronizePointerDisplayFollowing()
+
+        let frame = RelayNotchGeometry.frame(
+            for: .compact,
+            screenFrame: targetScreen.frame,
+            visibleFrame: targetScreen.visibleFrame,
+            safeAreaInsets: targetScreen.safeAreaInsets,
+            leftAuxiliaryArea: targetScreen.auxiliaryTopLeftArea,
+            rightAuxiliaryArea: targetScreen.auxiliaryTopRightArea
+        )
+        let duration = NSWorkspace.shared
+            .accessibilityDisplayShouldReduceMotion
+            ? 0.12
+            : RelayPointerDisplayFollower.relocationDuration
+        let safeArea = notchSafeArea(for: targetScreen)
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration / 2
+            panel.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard
+                    relocationGeneration == generation,
+                    presentation == .compact
+                else {
+                    panel.alphaValue = 1
+                    return
+                }
+
+                panel.setFrame(frame, display: true)
+                presentationState.notchSafeArea = safeArea
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = duration / 2
+                    panel.animator().alphaValue = 1
+                }
+            }
+        }
+    }
+
     private func dismissIfOutsidePanel(at location: CGPoint) {
         guard
             panel.isVisible,
@@ -261,7 +377,7 @@ final class RelayNotchPanelController {
             return
         }
         if presentation == .expanded {
-            present(.compact, on: currentScreen)
+            present(.compact, on: currentScreenIdentity?.resolve())
         } else if presentation == .peek {
             dismiss()
         }
@@ -277,7 +393,7 @@ final class RelayNotchPanelController {
             ) else {
                 return
             }
-            present(target, on: currentScreen)
+            present(target, on: currentScreenIdentity?.resolve())
             return
         }
 
@@ -307,7 +423,7 @@ final class RelayNotchPanelController {
             ) else {
                 return
             }
-            present(target, on: currentScreen)
+            present(target, on: currentScreenIdentity?.resolve())
         }
     }
 
@@ -322,10 +438,29 @@ final class RelayNotchPanelController {
         }
     }
 
-    private func screenContainingPointer() -> NSScreen? {
+    private func removePointerDisplayMonitoring() {
+        displayFollower.cancel()
+        if let globalMouseMoveMonitor {
+            NSEvent.removeMonitor(globalMouseMoveMonitor)
+            self.globalMouseMoveMonitor = nil
+        }
+        if let localMouseMoveMonitor {
+            NSEvent.removeMonitor(localMouseMoveMonitor)
+            self.localMouseMoveMonitor = nil
+        }
+        if let screenParametersObserver {
+            NotificationCenter.default.removeObserver(screenParametersObserver)
+            self.screenParametersObserver = nil
+        }
+    }
+
+    private func screenAtPointer() -> NSScreen? {
         let pointer = NSEvent.mouseLocation
         return NSScreen.screens.first { $0.frame.contains(pointer) }
-            ?? NSScreen.main
+    }
+
+    private func screenContainingPointer() -> NSScreen? {
+        screenAtPointer() ?? NSScreen.main
     }
 
     private func screenContainingActiveWindow() -> NSScreen? {
@@ -337,5 +472,6 @@ final class RelayNotchPanelController {
     isolated deinit {
         hoverCollapseTask?.cancel()
         removeOutsideClickMonitoring()
+        removePointerDisplayMonitoring()
     }
 }
