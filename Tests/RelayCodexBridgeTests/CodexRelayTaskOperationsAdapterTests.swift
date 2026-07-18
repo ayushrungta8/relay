@@ -5,6 +5,19 @@ import Testing
 
 struct CodexRelayTaskOperationsAdapterTests {
     @Test
+    func workerDiscoveryReadsEveryPage() async throws {
+        let rpc = TaskAdapterRPCStub(paginated: true)
+        let adapter = CodexRelayTaskOperationsAdapter(
+            client: CodexTaskOperationsClient(rpc: rpc)
+        )
+
+        let tasks = try await adapter.listTasks()
+
+        #expect(tasks.map(\.id) == ["worker-1", "worker-2"])
+        #expect(await rpc.recordedMethods() == ["thread/list", "thread/list"])
+    }
+
+    @Test
     func excludesTheControllerFromWorkerDiscovery() async throws {
         let rpc = TaskAdapterRPCStub()
         let store = TaskAdapterControllerStore(id: "controller-by-id")
@@ -65,6 +78,11 @@ private actor TaskAdapterControllerStore:
 
 private actor TaskAdapterRPCStub: CodexRPCRequesting {
     private var requests: [(String, JSONValue)] = []
+    private let paginated: Bool
+
+    init(paginated: Bool = false) {
+        self.paginated = paginated
+    }
 
     func requestJSON(
         method: String,
@@ -74,6 +92,22 @@ private actor TaskAdapterRPCStub: CodexRPCRequesting {
         requests.append((method, params))
         switch method {
         case "thread/list":
+            if paginated {
+                if params["cursor"]?.stringValue == "page-2" {
+                    return .object([
+                        "data": .array([
+                            Self.thread(id: "worker-2", name: "Second worker"),
+                        ]),
+                        "nextCursor": .null,
+                    ])
+                }
+                return .object([
+                    "data": .array([
+                        Self.thread(id: "worker-1", name: "First worker"),
+                    ]),
+                    "nextCursor": .string("page-2"),
+                ])
+            }
             return .object([
                 "data": .array([
                     Self.thread(

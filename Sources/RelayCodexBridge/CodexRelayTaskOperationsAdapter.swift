@@ -36,7 +36,7 @@ public actor CodexRelayTaskOperationsAdapter: RelayTaskOperations {
 
     public func listTasks() async throws -> [RelayTaskSummary] {
         let controllerID = await controllerThreadStore?.loadThreadID()
-        return try await client.listTasks()
+        return try await client.listTasks(limit: .max)
             .filter {
                 !Self.isControllerThread(
                     $0,

@@ -11,12 +11,25 @@ public struct RelayToolCallResult: Sendable, Equatable, Encodable {
 }
 
 public actor RelayToolCallRouter {
+    private static let recentTaskWindow: TimeInterval = 24 * 60 * 60
+
     private let operations: any RelayTaskOperations
     private let supervision: any RelaySupervisionStateReading
+    private let now: @Sendable () -> Date
 
     public init(operations: any RelayTaskOperations) {
         self.operations = operations
         supervision = EmptySupervisionState()
+        now = Date.init
+    }
+
+    public init(
+        operations: any RelayTaskOperations,
+        now: @escaping @Sendable () -> Date
+    ) {
+        self.operations = operations
+        supervision = EmptySupervisionState()
+        self.now = now
     }
 
     public init(
@@ -25,6 +38,17 @@ public actor RelayToolCallRouter {
     ) {
         self.operations = operations
         self.supervision = supervision
+        now = Date.init
+    }
+
+    public init(
+        operations: any RelayTaskOperations,
+        supervision: any RelaySupervisionStateReading,
+        now: @escaping @Sendable () -> Date
+    ) {
+        self.operations = operations
+        self.supervision = supervision
+        self.now = now
     }
 
     public func route(
@@ -51,15 +75,29 @@ public actor RelayToolCallRouter {
 
         do {
             switch tool {
-            case .listTasks:
+            case .getRecentTasks:
                 _ = try validatedArguments(
                     from: argumentsJSON,
                     allowedKeys: []
                 )
-                let tasks = if let visible = await supervision.visibleTasks() {
-                    visible
-                } else {
-                    try await operations.listTasks()
+                let tasks = try await recentTasks()
+                let focusedTaskID = await supervision
+                    .taskReferenceContext().resolvedTaskID
+                return success(
+                    TasksPayload(
+                        ok: true,
+                        tool: toolName,
+                        tasks: tasks,
+                        focusedTaskId: focusedTaskID
+                    )
+                )
+            case .getRunningTasks:
+                _ = try validatedArguments(
+                    from: argumentsJSON,
+                    allowedKeys: []
+                )
+                let tasks = try await recentTasks().filter {
+                    $0.status == "running"
                 }
                 return success(
                     TasksPayload(
@@ -111,7 +149,9 @@ public actor RelayToolCallRouter {
                     TasksPayload(
                         ok: true,
                         tool: toolName,
-                        tasks: await supervision.attentionInbox()
+                        tasks: recent(
+                            await supervision.attentionInbox()
+                        )
                     )
                 )
             case .getUsage:
@@ -185,6 +225,40 @@ public actor RelayToolCallRouter {
                 message: "The task operation failed."
             )
         }
+    }
+
+    private func recentTasks() async throws -> [RelayTaskSummary] {
+        let visible = await supervision.visibleTasks() ?? []
+        let listed = try await operations.listTasks()
+        var tasksByID = Dictionary(uniqueKeysWithValues: listed.map {
+            ($0.id, $0)
+        })
+        for task in visible {
+            tasksByID[task.id] = task
+        }
+        let candidates = recent(Array(tasksByID.values))
+        let visibleIDs = Set(visible.map(\.id))
+        var tasks: [RelayTaskSummary] = []
+        tasks.reserveCapacity(candidates.count)
+        for candidate in candidates {
+            if visibleIDs.contains(candidate.id) {
+                tasks.append(candidate)
+            } else if let detailed = try await operations.getTask(
+                id: candidate.id
+            ) {
+                tasks.append(detailed)
+            } else {
+                tasks.append(candidate)
+            }
+        }
+        return tasks.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    private func recent(
+        _ tasks: [RelayTaskSummary]
+    ) -> [RelayTaskSummary] {
+        let cutoff = now().addingTimeInterval(-Self.recentTaskWindow)
+        return tasks.filter { $0.updatedAt >= cutoff }
     }
 
     private func success<Payload: Encodable>(
@@ -305,6 +379,7 @@ private struct TasksPayload: Encodable {
     let ok: Bool
     let tool: String
     let tasks: [RelayTaskSummary]
+    var focusedTaskId: String? = nil
 }
 
 private struct TaskPayload: Encodable {

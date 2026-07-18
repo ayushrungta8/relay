@@ -43,17 +43,23 @@ final class RelayAppRuntime {
                 try await rpc.start()
             }
         )
-        pendingInteractionBroker = RelayPendingInteractionBroker(
+        let pendingInteractionBroker = RelayPendingInteractionBroker(
             rpc: rpc,
             controllerIdentity: controllerIdentity
         )
+        self.pendingInteractionBroker = pendingInteractionBroker
         let taskOperations = CodexRelayTaskOperationsAdapter(
             client: taskClient,
             controllerThreadStore: controllerThreadStore
         )
         let router = RelayToolCallRouter(
             operations: taskOperations,
-            supervision: activityStore
+            supervision: RelayControllerSupervisionAdapter(
+                base: activityStore,
+                pendingInteractions: {
+                    await pendingInteractionBroker.interactions()
+                }
+            )
         )
         let controllerSession = CodexControllerSessionAdapter(
             rpc: rpc,

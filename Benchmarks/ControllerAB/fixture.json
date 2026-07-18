@@ -1,0 +1,70 @@
+{
+  "now": "2026-07-18T12:00:00Z",
+  "recentTasks": [
+    {
+      "id": "T-ALPHA",
+      "title": "Checkout reliability",
+      "project": "/Work/storefront",
+      "status": "running",
+      "updatedAt": "2026-07-18T11:52:00Z",
+      "pendingQuestion": null,
+      "latestMessage": "Reproduced the checkout race and am running the focused concurrency suite. No user input is needed."
+    },
+    {
+      "id": "T-BETA",
+      "title": "Pricing approval",
+      "project": "/Work/billing",
+      "status": "needsInput",
+      "updatedAt": "2026-07-18T11:41:00Z",
+      "pendingQuestion": "Should annual plans keep the existing 15% discount or move to 20%?",
+      "latestMessage": "Implementation is paused until the annual-plan discount is confirmed."
+    },
+    {
+      "id": "T-ATLAS",
+      "title": "Atlas migration",
+      "project": "/Work/atlas",
+      "status": "failed",
+      "updatedAt": "2026-07-18T10:15:00Z",
+      "pendingQuestion": null,
+      "latestMessage": "The deployment completed its build, archive, dependency validation, and packaging stages. Unit tests and integration tests passed, and the release artifact was created successfully. Upload began normally, but the final production authorization step was rejected. The deployment failed because the production signing certificate expired. No files were changed after the failed deployment. Evidence token: sigcert-4Q9."
+    },
+    {
+      "id": "T-BEACON",
+      "title": "Beacon analytics dashboard",
+      "project": "/Work/beacon",
+      "status": "idle",
+      "updatedAt": "2026-07-18T09:32:00Z",
+      "pendingQuestion": null,
+      "latestMessage": "Dashboard implementation is complete and the focused UI and data tests pass."
+    },
+    {
+      "id": "T-ZETA",
+      "title": "Mobile database migration",
+      "project": "/Work/mobile",
+      "status": "running",
+      "updatedAt": "2026-07-18T08:04:00Z",
+      "pendingQuestion": null,
+      "latestMessage": "Migrating the offline cache schema and validating upgrade behavior from the previous two releases."
+    },
+    {
+      "id": "T-GAMMA",
+      "title": "Support export",
+      "project": "/Work/support",
+      "status": "idle",
+      "updatedAt": "2026-07-17T13:05:00Z",
+      "pendingQuestion": null,
+      "latestMessage": "CSV export is complete and has been handed back for review."
+    }
+  ],
+  "oldTasks": [
+    {
+      "id": "T-LEGACY",
+      "title": "Legacy cleanup",
+      "project": "/Work/legacy",
+      "status": "running",
+      "updatedAt": "2026-07-16T08:00:00Z",
+      "pendingQuestion": null,
+      "latestMessage": "The cleanup was running when this stale snapshot was recorded."
+    }
+  ]
+}

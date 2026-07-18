@@ -9,7 +9,7 @@ struct CodexControllerSessionAdapterTests {
     func controllerCacheChangesWhenItsBehaviorPromptChanges() {
         #expect(
             RelayControllerThreadFileStore.defaultFileURL.lastPathComponent
-                == "controller-thread-id-v3"
+                == "controller-thread-id-v4"
         )
     }
 
@@ -35,7 +35,7 @@ struct CodexControllerSessionAdapterTests {
         )
         #expect(startParams["ephemeral"] == .bool(false))
         #expect(startParams["cwd"] == .string("/Users/test/Work"))
-        #expect(startParams["model"] == .string("gpt-5.6-luna"))
+        #expect(startParams["model"] == .string("gpt-5.6-terra"))
         #expect(
             startParams["developerInstructions"]?.stringValue
                 == RelayControllerInstructions.developer
@@ -66,8 +66,8 @@ struct CodexControllerSessionAdapterTests {
         let turnParams = try #require(
             await rpc.params(for: "turn/start")?.objectValue
         )
-        #expect(turnParams["model"] == .string("gpt-5.6-luna"))
-        #expect(turnParams["effort"] == .string("medium"))
+        #expect(turnParams["model"] == .string("gpt-5.6-terra"))
+        #expect(turnParams["effort"] == .string("low"))
 
         await rpc.emit(
             .serverRequest(
@@ -78,7 +78,7 @@ struct CodexControllerSessionAdapterTests {
                         "threadId": .string("controller-1"),
                         "turnId": .string("turn-1"),
                         "callId": .string("tool-call-1"),
-                        "tool": .string("relay_list_tasks"),
+                        "tool": .string("relay_get_recent_tasks"),
                         "arguments": .object([:]),
                     ])
                 )
@@ -90,7 +90,7 @@ struct CodexControllerSessionAdapterTests {
             return
         }
         #expect(call.id == "tool-call-1")
-        #expect(call.toolName == "relay_list_tasks")
+        #expect(call.toolName == "relay_get_recent_tasks")
 
         try await session.completeToolCall(
             call,
@@ -249,7 +249,7 @@ struct CodexControllerSessionAdapterTests {
         #expect(resumeParams["sandbox"] == .string("read-only"))
         #expect(resumeParams["excludeTurns"] == .bool(true))
         #expect(resumeParams["cwd"] == .string("/Users/test/Work"))
-        #expect(resumeParams["model"] == .string("gpt-5.6-luna"))
+        #expect(resumeParams["model"] == .string("gpt-5.6-terra"))
         #expect(
             resumeParams["developerInstructions"]?.stringValue
                 == RelayControllerInstructions.developer

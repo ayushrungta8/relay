@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "case": "running",
+      "answer": "RUNNING",
+      "taskIds": ["T-ALPHA", "T-ZETA"],
+      "evidence": ""
+    },
+    {
+      "case": "attention",
+      "answer": "NEEDS_INPUT",
+      "taskIds": ["T-BETA"],
+      "evidence": ""
+    },
+    {
+      "case": "atlas",
+      "answer": "ATLAS_FAILED",
+      "taskIds": ["T-ATLAS"],
+      "evidence": "sigcert-4Q9"
+    },
+    {
+      "case": "beacon",
+      "answer": "BEACON_COMPLETE",
+      "taskIds": ["T-BEACON"],
+      "evidence": ""
+    },
+    {
+      "case": "old-task",
+      "answer": "NEEDS_LOOKUP",
+      "taskIds": [],
+      "evidence": ""
+    },
+    {
+      "case": "ambiguous",
+      "answer": "CLARIFY",
+      "taskIds": ["T-ATLAS", "T-ZETA"],
+      "evidence": ""
+    }
+  ]
+}

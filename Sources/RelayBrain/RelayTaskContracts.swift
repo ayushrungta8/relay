@@ -1,5 +1,15 @@
 import Foundation
 
+public struct RelayPendingRequestSummary: Sendable, Equatable, Encodable {
+    public let kind: String
+    public let prompt: String
+
+    public init(kind: String, prompt: String) {
+        self.kind = kind
+        self.prompt = prompt
+    }
+}
+
 public struct RelayTaskSummary: Sendable, Equatable, Encodable {
     public let id: String
     public let title: String
@@ -7,6 +17,7 @@ public struct RelayTaskSummary: Sendable, Equatable, Encodable {
     public let status: String
     public let updatedAt: Date
     public let latestUpdate: String?
+    public let pendingRequests: [RelayPendingRequestSummary]
 
     public init(
         id: String,
@@ -14,7 +25,8 @@ public struct RelayTaskSummary: Sendable, Equatable, Encodable {
         project: String,
         status: String,
         updatedAt: Date,
-        latestUpdate: String? = nil
+        latestUpdate: String? = nil,
+        pendingRequests: [RelayPendingRequestSummary] = []
     ) {
         self.id = id
         self.title = title
@@ -22,6 +34,30 @@ public struct RelayTaskSummary: Sendable, Equatable, Encodable {
         self.status = status
         self.updatedAt = updatedAt
         self.latestUpdate = latestUpdate
+        self.pendingRequests = pendingRequests
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case project
+        case status
+        case updatedAt
+        case latestUpdate
+        case pendingRequests
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(project, forKey: .project)
+        try container.encode(status, forKey: .status)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(latestUpdate, forKey: .latestUpdate)
+        if !pendingRequests.isEmpty {
+            try container.encode(pendingRequests, forKey: .pendingRequests)
+        }
     }
 }
 

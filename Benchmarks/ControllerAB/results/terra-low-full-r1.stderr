@@ -1,0 +1,15 @@
+2026-07-18T17:37:44.572223Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.573260Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.574161Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.574964Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.575799Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.576563Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.577356Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.578276Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.579136Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.579960Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.581111Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.582173Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.583061Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:44.583827Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-07-18T17:37:55.993447Z  WARN codex_core_plugins::manager: failed to warm remote plugin catalog cache error=failed to send remote plugin catalog request to https://chatgpt.com/backend-api/ps/plugins/list: error sending request for url (https://chatgpt.com/backend-api/ps/plugins/list?scope=GLOBAL&limit=200&pageToken=eyJzY29wZSI6IkdMT0JBTCIsIndvcmtzcGFjZV9pZCI6bnVsbCwiY3JlYXRvcl9hY2NvdW50X3VzZXJfaWQiOm51bGwsImNvbGxlY3Rpb24iOm51bGwsImluY2x1ZGVfcmVzdHJpY3RlZF9wbHVnaW5zIjp0cnVlLCJpbmNsdWRlX3VubGlzdGVkX2dsb2JhbF9wbHVnaW5zIjp0cnVlLCJlbGlnaWJsZV9wbGFuX3R5cGUiOiJwcm8iLCJlbmZvcmNlX3BsYW5fZWxpZ2liaWxpdHkiOnRydWUsInJhbmtfYnlfcG9wdWxhcml0eSI6dHJ1ZSwiY29udGludWF0aW9uIjp7ImRlcGxveW1lbnRfdHlwZSI6InByaW1hcnkiLCJxdWVyeV9pZCI6InJzNDo3OGU1ZTE5Ni0zOGU1LTQxN2UtYjA0ZS05NTZkMmRmODc2ODI6ZTJvZ2VaazowOmxlYWYtNDEwNDgzMTItNjFmNi00MDY3LTg2OTUtNTdkMDZiMzhjMDIxIiwiY3Vyc29yIjoiWkg2OWRYQzRnTHZ2ZUhMcGhKVUs2ZmppMk5HalBOUzBHc1ZDcEpWWmdfdlVOZUVGY1o1Y2RqUzRDSmdwUlpaZ0g2OTN1aXJMaW9wN0lyb1ZHZlhkMUxYbXlZWjBTR3lycURiaGx3MlpEajREa1Q4T2RRUkNFM1BCVnNtWlpaeHhZX241cmJPLWJBZ0VfR0F0akVZbmJXTXk0VUJGcWF4MDVLQUNjRmlhS1RQQXdteGFwc1pBLV9vYkJOWlVxUm54VXlqV3JBTkJjRkk9In19)

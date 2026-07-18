@@ -1,0 +1,17 @@
+{
+  "variant": "terra-low-lean",
+  "model": "gpt-5.6-terra",
+  "effort": "low",
+  "context": "lean",
+  "repetition": 3,
+  "durationSeconds": 12.510250091552734,
+  "inputCharacters": 2958,
+  "correct": true,
+  "usage": {
+    "input_tokens": 15604,
+    "cached_input_tokens": 0,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 352,
+    "reasoning_output_tokens": 118
+  }
+}

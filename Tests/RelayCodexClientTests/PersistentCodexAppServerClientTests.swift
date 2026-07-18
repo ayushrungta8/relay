@@ -33,7 +33,7 @@ struct PersistentCodexAppServerClientTests {
                     "threadId": .string("controller-thread"),
                     "turnId": .string("turn-1"),
                     "callId": .string("call-1"),
-                    "tool": .string("relay_list_tasks"),
+                    "tool": .string("relay_get_recent_tasks"),
                     "arguments": .object([:]),
                 ]),
             ])
@@ -41,7 +41,10 @@ struct PersistentCodexAppServerClientTests {
 
         let serverRequest = try #require(await requestTask.value)
         #expect(serverRequest.method == "item/tool/call")
-        #expect(serverRequest.params?["tool"]?.stringValue == "relay_list_tasks")
+        #expect(
+            serverRequest.params?["tool"]?.stringValue
+                == "relay_get_recent_tasks"
+        )
 
         try await client.respond(
             to: serverRequest.id,

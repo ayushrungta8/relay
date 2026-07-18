@@ -1,0 +1,17 @@
+{
+  "variant": "luna-medium-full",
+  "model": "gpt-5.6-luna",
+  "effort": "medium",
+  "context": "full",
+  "repetition": 1,
+  "durationSeconds": 12.913835048675537,
+  "inputCharacters": 63369,
+  "correct": true,
+  "usage": {
+    "input_tokens": 25707,
+    "cached_input_tokens": 0,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 506,
+    "reasoning_output_tokens": 250
+  }
+}

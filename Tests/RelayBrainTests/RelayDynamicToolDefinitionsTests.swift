@@ -8,7 +8,8 @@ struct RelayDynamicToolDefinitionsTests {
         #expect(
             RelayDynamicTools.definitions.map(\.name)
                 == [
-                    "relay_list_tasks",
+                    "relay_get_recent_tasks",
+                    "relay_get_running_tasks",
                     "relay_get_task",
                     "relay_get_attention_inbox",
                     "relay_get_usage",
@@ -44,7 +45,8 @@ struct RelayDynamicToolDefinitionsTests {
 
     @Test(
         arguments: [
-            ("relay_list_tasks", [], []),
+            ("relay_get_recent_tasks", [], []),
+            ("relay_get_running_tasks", [], []),
             ("relay_get_task", ["id"], []),
             ("relay_get_attention_inbox", [], []),
             ("relay_get_usage", [], []),

@@ -11,7 +11,13 @@ struct RelayContractsTests {
             title: "Repair onboarding",
             project: "/Projects/Relay",
             status: "running",
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            pendingRequests: [
+                RelayPendingRequestSummary(
+                    kind: "question",
+                    prompt: "Which region should we deploy to?"
+                ),
+            ]
         )
 
         #expect(
@@ -21,7 +27,13 @@ struct RelayContractsTests {
                     title: "Repair onboarding",
                     project: "/Projects/Relay",
                     status: "running",
-                    updatedAt: updatedAt
+                    updatedAt: updatedAt,
+                    pendingRequests: [
+                        RelayPendingRequestSummary(
+                            kind: "question",
+                            prompt: "Which region should we deploy to?"
+                        ),
+                    ]
                 )
         )
 
@@ -35,6 +47,14 @@ struct RelayContractsTests {
         #expect(object["project"] as? String == "/Projects/Relay")
         #expect(object["status"] as? String == "running")
         #expect(object["updatedAt"] != nil)
+        let requests = try #require(
+            object["pendingRequests"] as? [[String: Any]]
+        )
+        #expect(requests.first?["kind"] as? String == "question")
+        #expect(
+            requests.first?["prompt"] as? String
+                == "Which region should we deploy to?"
+        )
     }
 
     @Test
@@ -46,13 +66,18 @@ struct RelayContractsTests {
                 == RelayControllerInstructions.developer
         )
         #expect(configuration.dynamicTools == RelayDynamicTools.definitions)
-        #expect(configuration.dynamicTools.count == 7)
+        #expect(configuration.dynamicTools.count == 8)
+        #expect(configuration.model == "gpt-5.6-terra")
+        #expect(configuration.reasoningEffort == "low")
 
         let instructions = configuration.developerInstructions.lowercased()
         #expect(instructions.contains("liaison"))
         #expect(instructions.contains("must delegate"))
         #expect(instructions.contains("must not do worker work"))
-        #expect(instructions.contains("relay_list_tasks"))
+        #expect(instructions.contains("relay_get_recent_tasks"))
+        #expect(instructions.contains("relay_get_running_tasks"))
+        #expect(instructions.contains("rolling 24 hours"))
+        #expect(instructions.contains("what’s the status?"))
         #expect(instructions.contains("relay_send_to_task"))
         #expect(instructions.contains("succinct"))
         #expect(instructions.contains("quietly confident"))
@@ -68,7 +93,7 @@ struct RelayContractsTests {
     func controllerEventsCarryFinalTextAndDynamicToolCalls() {
         let call = RelayControllerToolCall(
             id: "call-1",
-            toolName: "relay_list_tasks",
+            toolName: "relay_get_recent_tasks",
             argumentsJSON: Data("{}".utf8)
         )
 

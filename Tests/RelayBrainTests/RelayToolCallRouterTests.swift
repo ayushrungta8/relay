@@ -4,20 +4,37 @@ import Testing
 
 struct RelayToolCallRouterTests {
     @Test
-    func listTasksRoutesToOperationsAndReturnsTaskSummaries() async throws {
+    func recentTasksReturnsOnlyTasksUpdatedWithinRollingDay() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
         let task = makeTask(id: "task-1", status: "running")
-        let operations = TaskOperationsSpy(tasks: [task])
-        let router = RelayToolCallRouter(operations: operations)
+        let old = makeTask(
+            id: "old-task",
+            status: "running",
+            updatedAt: now.addingTimeInterval(-86_401)
+        )
+        let recent = RelayTaskSummary(
+            id: task.id,
+            title: task.title,
+            project: task.project,
+            status: task.status,
+            updatedAt: now.addingTimeInterval(-86_400),
+            latestUpdate: task.latestUpdate
+        )
+        let operations = TaskOperationsSpy(tasks: [old, recent])
+        let router = RelayToolCallRouter(
+            operations: operations,
+            now: { now }
+        )
 
         let result = await router.route(
-            toolName: "relay_list_tasks",
+            toolName: "relay_get_recent_tasks",
             argumentsJSON: "{}"
         )
 
         #expect(result.success)
         let object = try resultObject(result)
         #expect(object["ok"] as? Bool == true)
-        #expect(object["tool"] as? String == "relay_list_tasks")
+        #expect(object["tool"] as? String == "relay_get_recent_tasks")
 
         let tasks = try #require(object["tasks"] as? [[String: Any]])
         #expect(tasks.count == 1)
@@ -25,7 +42,42 @@ struct RelayToolCallRouterTests {
         #expect(tasks.first?["status"] as? String == "running")
 
         let calls = await operations.recordedCalls()
-        #expect(calls == [.list])
+        #expect(calls == [.list, .get(id: "task-1")])
+    }
+
+    @Test
+    func runningTasksReturnsOnlyRecentRunningTasks() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let tasks = [
+            makeTask(
+                id: "running",
+                status: "running",
+                updatedAt: now.addingTimeInterval(-60)
+            ),
+            makeTask(
+                id: "idle",
+                status: "idle",
+                updatedAt: now.addingTimeInterval(-60)
+            ),
+            makeTask(
+                id: "old-running",
+                status: "running",
+                updatedAt: now.addingTimeInterval(-86_401)
+            ),
+        ]
+        let router = RelayToolCallRouter(
+            operations: TaskOperationsSpy(tasks: tasks),
+            now: { now }
+        )
+
+        let result = await router.route(
+            toolName: "relay_get_running_tasks",
+            argumentsJSON: "{}"
+        )
+
+        let object = try resultObject(result)
+        let returned = try #require(object["tasks"] as? [[String: Any]])
+        #expect(returned.map { $0["id"] as? String } == ["running"])
     }
 
     @Test
@@ -135,7 +187,8 @@ struct RelayToolCallRouterTests {
 
     @Test(
         arguments: [
-            ("relay_list_tasks", #"{"extra":true}"#),
+            ("relay_get_recent_tasks", #"{"extra":true}"#),
+            ("relay_get_running_tasks", #"{"extra":true}"#),
             ("relay_get_task", #"{"id":"task-1","extra":true}"#),
             (
                 "relay_start_task",
@@ -178,7 +231,7 @@ struct RelayToolCallRouterTests {
     @Test(
         arguments: [
             (
-                "relay_list_tasks",
+                "relay_get_recent_tasks",
                 "[]",
                 "Expected arguments to be a JSON object."
             ),
@@ -297,7 +350,8 @@ struct RelayToolCallRouterTests {
 
     @Test(
         arguments: [
-            ("relay_list_tasks", "{}"),
+            ("relay_get_recent_tasks", "{}"),
+            ("relay_get_running_tasks", "{}"),
             ("relay_get_task", #"{"id":"task-1"}"#),
             (
                 "relay_start_task",
@@ -422,13 +476,14 @@ private enum TaskOperationsSpyError: LocalizedError {
 
 private func makeTask(
     id: String,
-    status: String = "idle"
+    status: String = "idle",
+    updatedAt: Date = Date(timeIntervalSince1970: 1_721_234_567)
 ) -> RelayTaskSummary {
     RelayTaskSummary(
         id: id,
         title: "Task \(id)",
         project: "/Projects/Relay",
         status: status,
-        updatedAt: Date(timeIntervalSince1970: 1_721_234_567)
+        updatedAt: updatedAt
     )
 }

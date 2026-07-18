@@ -1,7 +1,8 @@
 import Foundation
 
 public enum RelayDynamicToolName: String, CaseIterable, Sendable {
-    case listTasks = "relay_list_tasks"
+    case getRecentTasks = "relay_get_recent_tasks"
+    case getRunningTasks = "relay_get_running_tasks"
     case getTask = "relay_get_task"
     case getAttentionInbox = "relay_get_attention_inbox"
     case getUsage = "relay_get_usage"
@@ -58,11 +59,21 @@ public struct RelayJSONSchemaProperty: Sendable, Equatable, Encodable {
 public enum RelayDynamicTools {
     public static let definitions: [RelayDynamicToolDefinition] = [
         RelayDynamicToolDefinition(
-            name: RelayDynamicToolName.listTasks.rawValue,
+            name: RelayDynamicToolName.getRecentTasks.rawValue,
             description: """
-            List visible Codex worker tasks and their current status. Use this \
-            before answering task-status questions or deciding whether \
-            existing work should be steered.
+            List Codex worker tasks updated within the rolling last 24 hours. \
+            Returns each task's current status and single latest progress \
+            message. Use for broad questions such as “what’s the status?” or \
+            before deciding whether existing work should be steered.
+            """,
+            inputSchema: RelayJSONSchema(properties: [:], required: [])
+        ),
+        RelayDynamicToolDefinition(
+            name: RelayDynamicToolName.getRunningTasks.rawValue,
+            description: """
+            List only currently running Codex worker tasks updated within the \
+            rolling last 24 hours. Use for questions about what is running or \
+            still in progress.
             """,
             inputSchema: RelayJSONSchema(properties: [:], required: [])
         ),

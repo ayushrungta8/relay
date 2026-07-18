@@ -10,7 +10,10 @@ struct RelayControllerRuntimeTests {
         let operations = TaskOperationsStub()
         let runtime = RelayControllerRuntime(
             session: session,
-            router: RelayToolCallRouter(operations: operations)
+            router: RelayToolCallRouter(
+                operations: operations,
+                now: { Date(timeIntervalSince1970: 1_784_210_400) }
+            )
         )
 
         let answer = try await runtime.submit("What is running?")
@@ -93,7 +96,7 @@ private actor ControllerSessionStub: RelayControllerSession {
                 .dynamicToolCall(
                     RelayControllerToolCall(
                         id: "call-1",
-                        toolName: "relay_list_tasks",
+                        toolName: "relay_get_recent_tasks",
                         argumentsJSON: Data("{}".utf8)
                     )
                 )

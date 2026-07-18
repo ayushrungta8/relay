@@ -5,6 +5,7 @@ import Testing
 struct RelayAttentionToolTests {
     @Test
     func taskStatusReadsUseTheEnrichedSupervisionSnapshot() async throws {
+        let now = Date(timeIntervalSince1970: 1_784_210_400)
         let operations = SupervisionTaskOperationsStub(
             tasksByID: [
                 "worker": makeTask(id: "worker", status: "notLoaded"),
@@ -13,18 +14,25 @@ struct RelayAttentionToolTests {
         let router = RelayToolCallRouter(
             operations: operations,
             supervision: SupervisionStateStub(
-                visible: [makeTask(id: "worker", status: "running")]
-            )
+                visible: [makeTask(id: "worker", status: "running")],
+                context: RelayTaskReferenceContext(
+                    selectedTaskID: "worker"
+                )
+            ),
+            now: { now }
         )
 
         let list = await router.route(
-            toolName: "relay_list_tasks",
+            toolName: "relay_get_recent_tasks",
             argumentsJSON: "{}"
         )
         let listedTasks = try #require(
             try resultObject(list)["tasks"] as? [[String: Any]]
         )
         #expect(listedTasks.first?["status"] as? String == "running")
+        #expect(
+            try resultObject(list)["focusedTaskId"] as? String == "worker"
+        )
 
         let get = await router.route(
             toolName: "relay_get_task",
@@ -38,12 +46,14 @@ struct RelayAttentionToolTests {
 
     @Test
     func attentionInboxReturnsCurrentWaitingTasks() async throws {
+        let now = Date(timeIntervalSince1970: 1_784_210_400)
         let state = SupervisionStateStub(
             attention: [makeTask(id: "needs-user", status: "needsInput")]
         )
         let router = RelayToolCallRouter(
             operations: SupervisionTaskOperationsStub(),
-            supervision: state
+            supervision: state,
+            now: { now }
         )
 
         let result = await router.route(

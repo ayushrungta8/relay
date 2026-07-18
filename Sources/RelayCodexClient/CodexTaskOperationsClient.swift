@@ -72,16 +72,30 @@ public actor CodexTaskOperationsClient: CodexTaskOperating {
     }
 
     public func listTasks(limit: Int = 25) async throws -> [CodexThread] {
-        let result = try await request(
-            method: "thread/list",
-            params: .object([
+        guard limit > 0 else { return [] }
+        var threads: [CodexThread] = []
+        var cursor: String?
+        repeat {
+            let pageLimit = min(100, limit - threads.count)
+            var params: [String: JSONValue] = [
                 "archived": .bool(false),
-                "limit": .integer(Int64(limit)),
+                "limit": .integer(Int64(pageLimit)),
                 "sortKey": .string("updated_at"),
-            ]),
-            as: ThreadListResult.self
-        )
-        return result.data.map(\.thread)
+            ]
+            if let cursor {
+                params["cursor"] = .string(cursor)
+            }
+            let result = try await request(
+                method: "thread/list",
+                params: .object(params),
+                as: ThreadListResult.self
+            )
+            threads.append(contentsOf: result.data.map(\.thread))
+            let nextCursor = result.nextCursor
+            guard !result.data.isEmpty, nextCursor != cursor else { break }
+            cursor = nextCursor
+        } while cursor != nil && threads.count < limit
+        return Array(threads.prefix(limit))
     }
 
     public func getTask(id: String) async throws -> CodexTaskRuntime {
@@ -262,6 +276,7 @@ public actor CodexTaskOperationsClient: CodexTaskOperating {
 
 private struct ThreadListResult: Decodable {
     let data: [ThreadRecord]
+    let nextCursor: String?
 }
 
 private struct ThreadStartResult: Decodable {
