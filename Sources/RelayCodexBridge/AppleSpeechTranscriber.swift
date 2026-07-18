@@ -23,6 +23,8 @@ public enum AppleSpeechTranscriberError:
     case invalidAudio
     case noSpeech
     case timedOut
+    case dictationDisabled
+    case networkUnavailable
 }
 
 extension AppleSpeechTranscriberError: LocalizedError {
@@ -44,7 +46,57 @@ extension AppleSpeechTranscriberError: LocalizedError {
             "Relay did not hear a spoken command."
         case .timedOut:
             "Apple Speech did not finish transcribing in time."
+        case .dictationDisabled:
+            "Siri and Dictation are disabled. Enable Dictation in System Settings → Keyboard."
+        case .networkUnavailable:
+            "Speech Recognition needs an internet connection for this language."
         }
+    }
+}
+
+extension AppleSpeechTranscriberError: RelayVoiceReadinessFailure {
+    public var voiceReadinessState: RelayVoiceReadinessState? {
+        switch self {
+        case .permissionDenied:
+            .speechRecognitionDenied
+        case .permissionRestricted:
+            .speechRecognitionRestricted
+        case let .recognizerUnavailable(locale):
+            .recognizerUnavailable(locale)
+        case .dictationDisabled:
+            .dictationDisabled
+        case .networkUnavailable:
+            .networkUnavailable
+        case .alreadyRunning,
+             .notRunning,
+             .invalidAudio,
+             .noSpeech,
+             .timedOut:
+            nil
+        }
+    }
+
+    public static func classify(
+        _ error: any Error
+    ) -> AppleSpeechTranscriberError? {
+        let cocoaError = error as NSError
+        if cocoaError.localizedDescription
+            .localizedCaseInsensitiveContains(
+                "Siri and Dictation are disabled"
+            ) {
+            return .dictationDisabled
+        }
+
+        if let urlError = error as? URLError,
+           [
+               URLError.Code.notConnectedToInternet,
+               .networkConnectionLost,
+               .cannotConnectToHost,
+               .timedOut,
+           ].contains(urlError.code) {
+            return .networkUnavailable
+        }
+        return nil
     }
 }
 
@@ -148,7 +200,7 @@ public actor AppleSpeechTranscriber: RelaySpeechTranscribing {
             return transcript
         } catch {
             cleanUp()
-            throw error
+            throw AppleSpeechTranscriberError.classify(error) ?? error
         }
     }
 
