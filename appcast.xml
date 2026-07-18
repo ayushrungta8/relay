@@ -6,6 +6,15 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Relay updates</title>
         <item>
+            <title>1.1.2</title>
+            <pubDate>Sat, 18 Jul 2026 23:33:56 +0400</pubDate>
+            <link>https://github.com/ayushrungta8/relay</link>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>1.1.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/ayushrungta8/relay/releases/download/v1.1.2/Relay-macos-universal.dmg" length="5768603" type="application/octet-stream" sparkle:edSignature="u4AT7dClBkmrDVjqvk+3fCufG28PZ8kLdgo3PvIfCqndBTN+rb0y4QynszrZta5+UW4BDV4Voh5yboSQ8bG8DA=="/>
+        </item>
+        <item>
             <title>1.1.1</title>
             <pubDate>Sat, 18 Jul 2026 21:20:49 +0400</pubDate>
             <link>https://github.com/ayushrungta8/relay</link>
@@ -26,6 +35,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: pRAh4G1uslECwbkp/2h377e+rVnv8W90DrJ5NCMJfgMg0McBCJ070Yj4uh1OSo83ysaQ+W84hmu4/qUkVfuxBQ==
-length: 1798
+edSignature: QMI+1m5ljAwYVN0R+SUNpkkn/H+kX1YsC0oG08NMYCcfhLpT4e2mx/s4JktedFk8LQUcd8vzD4C6ngcHKRtTBw==
+length: 2470
 -->
