@@ -48,26 +48,14 @@ struct RelayShortcutRecorder: View {
     let onCommit: (RelayGlobalShortcut) -> Void
 
     @State private var isRecording = false
+    @State private var eventMonitor: Any?
 
     var body: some View {
         Button(isRecording ? "Type shortcut…" : valueCopy) {
-            isRecording = true
+            beginRecording()
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .overlay {
-            if isRecording {
-                RelayShortcutCaptureView(
-                    commit: { shortcut in
-                        isRecording = false
-                        onCommit(shortcut)
-                    },
-                    cancel: { isRecording = false }
-                )
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-            }
-        }
         .accessibilityLabel("Push-to-talk shortcut")
         .accessibilityValue(
             isRecording ? "Recording" : valueCopy
@@ -75,44 +63,31 @@ struct RelayShortcutRecorder: View {
         .accessibilityHint(
             "Press a modifier and key. Escape cancels. Delete restores Option-Space."
         )
+        .onDisappear(perform: endRecording)
     }
 
     private var valueCopy: String {
         RelayShortcutPresentation.copy(for: shortcut)
     }
-}
 
-private struct RelayShortcutCaptureView: NSViewRepresentable {
-    let commit: (RelayGlobalShortcut) -> Void
-    let cancel: () -> Void
-
-    func makeNSView(context: Context) -> ShortcutCaptureNSView {
-        let view = ShortcutCaptureNSView()
-        view.commit = commit
-        view.cancel = cancel
-        DispatchQueue.main.async { view.window?.makeFirstResponder(view) }
-        return view
+    private func beginRecording() {
+        endRecording()
+        isRecording = true
+        eventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .keyDown
+        ) { event in
+            handle(event)
+            return nil
+        }
     }
 
-    func updateNSView(_ view: ShortcutCaptureNSView, context: Context) {
-        view.commit = commit
-        view.cancel = cancel
-        DispatchQueue.main.async { view.window?.makeFirstResponder(view) }
-    }
-}
-
-private final class ShortcutCaptureNSView: NSView {
-    var commit: ((RelayGlobalShortcut) -> Void)?
-    var cancel: (() -> Void)?
-
-    override var acceptsFirstResponder: Bool { true }
-
-    override func keyDown(with event: NSEvent) {
+    private func handle(_ event: NSEvent) {
         switch event.keyCode {
         case 53:
-            cancel?()
+            endRecording()
         case 51, 117:
-            commit?(.optionSpace)
+            endRecording()
+            onCommit(.optionSpace)
         default:
             let modifiers = RelayShortcutModifiers(
                 event.modifierFlags
@@ -125,13 +100,21 @@ private final class ShortcutCaptureNSView: NSView {
                 NSSound.beep()
                 return
             }
-            commit?(
-                RelayGlobalShortcut(
-                    keyCode: keyCode,
-                    modifiers: modifiers
-                )
+            let shortcut = RelayGlobalShortcut(
+                keyCode: keyCode,
+                modifiers: modifiers
             )
+            endRecording()
+            onCommit(shortcut)
         }
+    }
+
+    private func endRecording() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+        isRecording = false
     }
 }
 
