@@ -99,7 +99,7 @@ public actor CodexMonitoringClient {
         creditID: String?
     ) async throws -> CodexResetCreditConsumeOutcome {
         var params: [String: JSONValue] = [
-            "attemptId": .string(UUID().uuidString),
+            "idempotencyKey": .string(UUID().uuidString),
         ]
         if let creditID {
             params["creditId"] = .string(creditID)

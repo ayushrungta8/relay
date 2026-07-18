@@ -66,6 +66,27 @@ struct CodexMonitoringClientTests {
     }
 
     @Test
+    func consumingResetCreditUsesProtocolIdempotencyKey() async throws {
+        let rpc = ResetCreditFixtureRPC()
+        let source = MonitoringEventSource()
+        let client = CodexMonitoringClient(
+            rpc: rpc,
+            serverEvents: source.stream
+        )
+
+        let outcome = try await client.consumeResetCredit(creditID: "reset-1")
+        let params = await rpc.recordedParams()
+
+        #expect(outcome == .redeemed)
+        #expect(params?["creditId"]?.stringValue == "reset-1")
+        #expect(params?["attemptId"] == nil)
+        #expect(
+            params?["idempotencyKey"]?.stringValue.flatMap(UUID.init(uuidString:))
+                != nil
+        )
+    }
+
+    @Test
     func preservesUnavailableUsageInsteadOfInventingZeroes() async throws {
         let rpc = MonitoringFixtureRPC(missingUsage: true)
         let source = MonitoringEventSource()
@@ -485,4 +506,24 @@ private final class MonitoringEventSource: @unchecked Sendable {
 
 private enum MonitoringFixtureError: Error {
     case unexpectedMethod(String)
+}
+
+private actor ResetCreditFixtureRPC: CodexRPCRequesting {
+    private var params: JSONValue?
+
+    func requestJSON(
+        method: String,
+        params: JSONValue,
+        timeout: Duration
+    ) async throws -> JSONValue {
+        guard method == "account/rateLimitResetCredit/consume" else {
+            throw MonitoringFixtureError.unexpectedMethod(method)
+        }
+        self.params = params
+        return .object(["outcome": .string("redeemed")])
+    }
+
+    func recordedParams() -> JSONValue? {
+        params
+    }
 }
