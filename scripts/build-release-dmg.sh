@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 INFO_PLIST="$ROOT_DIR/Resources/Info.plist"
 ENTITLEMENTS="$ROOT_DIR/Resources/Relay.entitlements"
+APP_ICON="$ROOT_DIR/Resources/Relay.icns"
 DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/Relay.app"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
@@ -11,8 +12,11 @@ DMG_NAME="Relay-$VERSION-macos-universal.dmg"
 DMG_PATH="$DIST_DIR/$DMG_NAME"
 CHECKSUM_PATH="$DMG_PATH.sha256"
 WORK_DIR="$(mktemp -d "${TMPDIR%/}/relay-release.XXXXXX")"
+RW_DMG_PATH="$WORK_DIR/Relay-rw.dmg"
+MOUNT_DIR="$WORK_DIR/mount"
 
 cleanup() {
+    hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1 || true
     rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
@@ -34,6 +38,7 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 ditto "$RELAY_BINARY" "$APP_DIR/Contents/MacOS/RelayApp"
 chmod +x "$APP_DIR/Contents/MacOS/RelayApp"
 ditto "$INFO_PLIST" "$APP_DIR/Contents/Info.plist"
+ditto "$APP_ICON" "$APP_DIR/Contents/Resources/Relay.icns"
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
 
 # Ad-hoc signing preserves bundle integrity without requiring a paid Apple
@@ -50,14 +55,30 @@ PAYLOAD_DIR="$WORK_DIR/payload"
 mkdir -p "$PAYLOAD_DIR"
 ditto "$APP_DIR" "$PAYLOAD_DIR/Relay.app"
 ln -s /Applications "$PAYLOAD_DIR/Applications"
+ditto "$APP_ICON" "$PAYLOAD_DIR/.VolumeIcon.icns"
 
 rm -f "$DMG_PATH" "$CHECKSUM_PATH"
 hdiutil create \
     -volname "Relay $VERSION" \
     -srcfolder "$PAYLOAD_DIR" \
+    -format UDRW \
+    -ov \
+    "$RW_DMG_PATH"
+
+mkdir -p "$MOUNT_DIR"
+hdiutil attach \
+    -readwrite \
+    -nobrowse \
+    -mountpoint "$MOUNT_DIR" \
+    "$RW_DMG_PATH" >/dev/null
+xcrun SetFile -a C "$MOUNT_DIR"
+hdiutil detach "$MOUNT_DIR" >/dev/null
+
+hdiutil convert \
+    "$RW_DMG_PATH" \
     -format UDZO \
     -ov \
-    "$DMG_PATH"
+    -o "$DMG_PATH"
 hdiutil verify "$DMG_PATH"
 
 (

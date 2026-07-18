@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="badge" cx="35%" cy="28%" r="78%">
+      <stop offset="0" stop-color="#ff675c"/>
+      <stop offset="0.58" stop-color="#f6574e"/>
+      <stop offset="1" stop-color="#e94740"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="38"/>
+    </filter>
+  </defs>
+
+  <circle cx="512" cy="512" r="382" fill="#f45149" opacity="0.42" filter="url(#glow)"/>
+  <circle cx="512" cy="512" r="350" fill="url(#badge)"/>
+
+  <g fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round">
+    <path d="M512 548 V658"/>
+    <path d="M450 457 C419 488 419 536 450 567"/>
+    <path d="M574 457 C605 488 605 536 574 567"/>
+    <path d="M397 404 C337 464 337 560 397 620"/>
+    <path d="M627 404 C687 464 687 560 627 620"/>
+  </g>
+  <circle cx="512" cy="512" r="27" fill="#ffffff"/>
+</svg>

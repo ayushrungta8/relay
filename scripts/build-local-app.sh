@@ -20,6 +20,7 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BIN_DIR/RelayApp" "$MACOS_DIR/RelayApp"
 chmod +x "$MACOS_DIR/RelayApp"
 cp "$ROOT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
+cp "$ROOT_DIR/Resources/Relay.icns" "$RESOURCES_DIR/Relay.icns"
 plutil -lint "$CONTENTS_DIR/Info.plist" >/dev/null
 
 IDENTITY_SEARCH_ARGS=()

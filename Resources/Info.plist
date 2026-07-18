@@ -10,6 +10,8 @@
     <string>RelayApp</string>
     <key>CFBundleIdentifier</key>
     <string>com.ayushrungta.relay</string>
+    <key>CFBundleIconFile</key>
+    <string>Relay.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
