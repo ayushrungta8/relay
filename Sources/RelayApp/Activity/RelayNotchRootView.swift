@@ -85,7 +85,6 @@ struct RelayNotchRootView: View {
                     )
                 }
             }
-            .transition(contentTransition)
 
             if presentation == .expanded, let voiceSetup {
                 Color.black.opacity(0.58)
@@ -114,7 +113,6 @@ struct RelayNotchRootView: View {
         }
         .contentShape(notchShape)
         .tint(RelayPalette.accent)
-        .animation(contentAnimation, value: presentation)
         .animation(contentAnimation, value: voiceSetup)
         .onHover(perform: pointerHoverChanged)
         .onChange(of: activity.automaticPeekTrigger, initial: true) {
@@ -144,19 +142,6 @@ struct RelayNotchRootView: View {
             .linear(duration: 0.12)
         case .anchoredMovement:
             .timingCurve(0.22, 1, 0.36, 1, duration: 0.22)
-        }
-    }
-
-    private var contentTransition: AnyTransition {
-        switch RelayAccessibilityContract.motionStyle(
-            reduceMotion: reduceMotion
-        ) {
-        case .crossfade:
-            .opacity
-        case .anchoredMovement:
-            .opacity.combined(
-                with: .scale(scale: 0.985, anchor: .top)
-            )
         }
     }
 

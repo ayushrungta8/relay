@@ -15,6 +15,12 @@ let package = Package(
         .library(name: "RelayCodexBridge", targets: ["RelayCodexBridge"]),
         .library(name: "RelayVoice", targets: ["RelayVoice"]),
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/sparkle-project/Sparkle",
+            from: "2.9.2"
+        ),
+    ],
     targets: [
         .target(name: "RelayCore"),
         .target(name: "RelayBrain"),
@@ -52,6 +58,7 @@ let package = Package(
                 "RelayCodexClient",
                 "RelayCore",
                 "RelayVoice",
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
@@ -59,6 +66,10 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI"),
+                .unsafeFlags([
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "@executable_path/../Frameworks",
+                ]),
             ]
         ),
         .testTarget(

@@ -247,7 +247,7 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         periodicRefreshTask = Task { [weak self, sleep] in
             while !Task.isCancelled {
                 do {
-                    try await sleep(.seconds(30))
+                    try await sleep(.seconds(1))
                 } catch {
                     return
                 }

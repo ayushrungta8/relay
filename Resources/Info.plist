@@ -19,9 +19,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.2</string>
+    <string>1.1.0</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>4</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
     <key>LSMinimumSystemVersion</key>
@@ -36,5 +36,15 @@
     <string>Relay uses the microphone only while you hold its push-to-talk shortcut.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Relay uses Apple Speech to turn your push-to-talk command into text before sending it to the Relay controller.</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/ayushrungta8/relay/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>QvIeR1oi7pfKEqm4eLaYSFdlsxVRX9S5wI2KKTZEvgk=</string>
+    <key>SURequireSignedFeed</key>
+    <true/>
+    <key>SUVerifyUpdateBeforeExtraction</key>
+    <true/>
 </dict>
 </plist>

@@ -4,11 +4,9 @@ import SwiftUI
 
 @MainActor
 final class RelayNotchPanelController {
-    private let nonactivatingPanel: RelayNotchPanel
-    private let interactivePanel: RelayNotchPanel
+    private let panel: RelayNotchPanel
     private let presentationState: RelayNotchPanelState
     private let hostingView: NSHostingView<RelayNotchPanelHost>
-    private var activePanel: RelayNotchPanel?
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
     private var currentScreen: NSScreen?
@@ -49,11 +47,8 @@ final class RelayNotchPanelController {
         )
         RelayHostingViewConfiguration.apply(to: hostingView)
         self.hostingView = hostingView
-        nonactivatingPanel = RelayNotchPanel(
+        panel = RelayNotchPanel(
             initialPresentation: .hidden
-        )
-        interactivePanel = RelayNotchPanel(
-            initialPresentation: .expanded
         )
         presentationState.presentationRequestHandler = { [weak self] value in
             guard let self else { return }
@@ -65,9 +60,8 @@ final class RelayNotchPanelController {
         presentationState.pointerHoverHandler = { [weak self] isInside in
             self?.pointerHoverChanged(isInside)
         }
-        configurePanel(nonactivatingPanel)
-        configurePanel(interactivePanel)
-        nonactivatingPanel.contentView = hostingView
+        configurePanel(panel)
+        panel.contentView = hostingView
     }
 
     func present(
@@ -82,17 +76,6 @@ final class RelayNotchPanelController {
             return
         }
 
-        let panel = panel(for: presentation)
-        if activePanel !== panel {
-            activePanel?.orderOut(nil)
-        }
-        attachHost(to: panel)
-        activePanel = panel
-        presentationState.notchSafeArea = notchSafeArea(for: targetScreen)
-        presentationState.presentation = presentation
-        currentScreen = targetScreen
-        panel.updatePresentation(presentation)
-
         let frame = RelayNotchGeometry.frame(
             for: presentation,
             screenFrame: targetScreen.frame,
@@ -101,15 +84,21 @@ final class RelayNotchPanelController {
             leftAuxiliaryArea: targetScreen.auxiliaryTopLeftArea,
             rightAuxiliaryArea: targetScreen.auxiliaryTopRightArea
         )
+        if !panel.isVisible {
+            panel.setFrame(collapsedFrame(for: frame), display: false)
+        }
+        panel.updatePresentation(presentation)
+        orderPanel(panel, for: presentation)
+        presentationState.notchSafeArea = notchSafeArea(for: targetScreen)
+        presentationState.presentation = presentation
+        currentScreen = targetScreen
         apply(
             frame: frame,
-            to: panel,
             transition: presentation.transition(
                 reduceMotion:
                     NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             )
         )
-        orderPanel(panel, for: presentation)
         installOutsideClickMonitoring()
     }
 
@@ -133,11 +122,8 @@ final class RelayNotchPanelController {
     func dismiss() {
         guard presentationState.drafts.canDismiss else { return }
         presentationState.presentation = .hidden
-        if activePanel === nonactivatingPanel {
-            nonactivatingPanel.updatePresentation(.hidden)
-        }
-        activePanel?.orderOut(nil)
-        activePanel = nil
+        panel.updatePresentation(.hidden)
+        panel.orderOut(nil)
         currentScreen = nil
         removeOutsideClickMonitoring()
     }
@@ -160,31 +146,14 @@ final class RelayNotchPanelController {
         }
     }
 
-    private func attachHost(to panel: RelayNotchPanel) {
-        guard panel.contentView !== hostingView else { return }
-
-        nonactivatingPanel.contentView = nil
-        interactivePanel.contentView = nil
-        panel.contentView = hostingView
-    }
-
-    private func panel(
-        for presentation: RelayPanelPresentation
-    ) -> RelayNotchPanel {
-        if presentation.allowsActivation {
-            interactivePanel
-        } else {
-            nonactivatingPanel
-        }
-    }
-
     private func orderPanel(
         _ panel: RelayNotchPanel,
         for presentation: RelayPanelPresentation
     ) {
         if presentation.allowsActivation {
             NSApplication.shared.activate()
-            panel.makeKeyAndOrderFront(nil)
+            panel.orderFrontRegardless()
+            panel.makeKey()
         } else {
             panel.orderFrontRegardless()
         }
@@ -192,7 +161,6 @@ final class RelayNotchPanelController {
 
     private func apply(
         frame: CGRect,
-        to panel: RelayNotchPanel,
         transition: RelayPanelPresentation.Transition
     ) {
         switch transition {
@@ -204,22 +172,13 @@ final class RelayNotchPanelController {
                 panel.animator().alphaValue = 1
             }
         case let .anchoredResize(duration):
-            guard panel.isVisible else {
+            if !panel.isVisible {
                 panel.setFrame(collapsedFrame(for: frame), display: false)
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = duration
-                    context.timingFunction = CAMediaTimingFunction(
-                        name: .easeOut
-                    )
-                    panel.animator().setFrame(frame, display: true)
-                }
-                return
             }
-
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = duration
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                panel.animator().setFrame(frame, display: true)
+            NSAnimationContext.animate(
+                .spring(duration: max(duration, 0.24), bounce: 0.08)
+            ) {
+                panel.setFrame(frame, display: true)
             }
         }
     }
@@ -291,8 +250,8 @@ final class RelayNotchPanelController {
 
     private func dismissIfOutsidePanel(at location: CGPoint) {
         guard
-            let activePanel,
-            !activePanel.frame.contains(location),
+            panel.isVisible,
+            !panel.frame.contains(location),
             shouldDismissOnOutsideClick()
         else {
             return
@@ -339,9 +298,8 @@ final class RelayNotchPanelController {
             else {
                 return
             }
-            let pointerRemainsInside = activePanel?.frame.contains(
-                NSEvent.mouseLocation
-            ) ?? false
+            let pointerRemainsInside = panel.isVisible
+                && panel.frame.contains(NSEvent.mouseLocation)
             guard let target = RelayHoverPresentation.exitTarget(
                 from: presentation,
                 draftsCanDismiss: presentationState.drafts.canDismiss,

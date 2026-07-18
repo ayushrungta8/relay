@@ -67,26 +67,22 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
-    func panelsKeepSeparateNonactivatingAndInteractiveStyles() {
-        let nonactivatingPanel = RelayNotchPanel(
+    func panelKeepsAStableNonactivatingStyleWhilePresentationControlsKeyState() {
+        let panel = RelayNotchPanel(
             initialPresentation: .hidden
         )
-        let interactivePanel = RelayNotchPanel(
-            initialPresentation: .expanded
-        )
 
-        nonactivatingPanel.updatePresentation(.peek)
+        panel.updatePresentation(.compact)
         #expect(
-            nonactivatingPanel.styleMask.contains(.nonactivatingPanel)
+            panel.styleMask.contains(.nonactivatingPanel)
         )
-        #expect(!nonactivatingPanel.canBecomeKey)
+        #expect(!panel.canBecomeKey)
 
-        nonactivatingPanel.updatePresentation(.compact)
-        interactivePanel.updatePresentation(.expanded)
+        panel.updatePresentation(.expanded)
         #expect(
-            !interactivePanel.styleMask.contains(.nonactivatingPanel)
+            panel.styleMask.contains(.nonactivatingPanel)
         )
-        #expect(interactivePanel.canBecomeKey)
+        #expect(panel.canBecomeKey)
     }
 
     @Test
@@ -119,6 +115,21 @@ struct RelayPanelPresentationTests {
 
         #expect(panel.isFloatingPanel)
         #expect(panel.level == .screenSaver)
+    }
+
+    @Test
+    func expandedPanelUsesUnconditionalFrontOrderingBeforeTakingKeyFocus()
+        throws
+    {
+        let controllerSource = try relayProjectSource(
+            "Sources/RelayApp/Notch/RelayNotchPanelController.swift"
+        )
+
+        #expect(
+            controllerSource.contains(
+                "panel.orderFrontRegardless()\n            panel.makeKey()"
+            )
+        )
     }
 
     @Test
@@ -293,4 +304,15 @@ struct RelayPanelPresentationTests {
         #expect(RelayPanelPresentation.compact.toggled == .expanded)
         #expect(RelayPanelPresentation.expanded.toggled == .compact)
     }
+}
+
+private func relayProjectSource(_ relativePath: String) throws -> String {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    return try String(
+        contentsOf: root.appendingPathComponent(relativePath),
+        encoding: .utf8
+    )
 }

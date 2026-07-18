@@ -7,7 +7,12 @@ ENTITLEMENTS="$ROOT_DIR/Resources/Relay.entitlements"
 APP_ICON="$ROOT_DIR/Resources/Relay.icns"
 DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/Relay.app"
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
+FRAMEWORKS_DIR="$APP_DIR/Contents/Frameworks"
+VERSION="${RELAY_VERSION:-$(
+    /usr/libexec/PlistBuddy \
+        -c 'Print :CFBundleShortVersionString' \
+        "$INFO_PLIST"
+)}"
 DMG_NAME="Relay-macos-universal.dmg"
 DMG_PATH="$DIST_DIR/$DMG_NAME"
 CHECKSUM_PATH="$DMG_PATH.sha256"
@@ -34,11 +39,30 @@ if [[ "$ARCHITECTURES" != *arm64* || "$ARCHITECTURES" != *x86_64* ]]; then
 fi
 
 rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+mkdir -p \
+    "$APP_DIR/Contents/MacOS" \
+    "$APP_DIR/Contents/Resources" \
+    "$FRAMEWORKS_DIR"
 ditto "$RELAY_BINARY" "$APP_DIR/Contents/MacOS/RelayApp"
+ditto "$BIN_DIR/Sparkle.framework" "$FRAMEWORKS_DIR/Sparkle.framework"
 chmod +x "$APP_DIR/Contents/MacOS/RelayApp"
 ditto "$INFO_PLIST" "$APP_DIR/Contents/Info.plist"
 ditto "$APP_ICON" "$APP_DIR/Contents/Resources/Relay.icns"
+if [[ -n "${RELAY_VERSION:-}" ]]; then
+    /usr/libexec/PlistBuddy \
+        -c "Set :CFBundleShortVersionString $RELAY_VERSION" \
+        "$APP_DIR/Contents/Info.plist"
+fi
+if [[ -n "${RELAY_BUILD_NUMBER:-}" ]]; then
+    /usr/libexec/PlistBuddy \
+        -c "Set :CFBundleVersion $RELAY_BUILD_NUMBER" \
+        "$APP_DIR/Contents/Info.plist"
+fi
+if [[ -n "${RELAY_SPARKLE_FEED_URL:-}" ]]; then
+    /usr/libexec/PlistBuddy \
+        -c "Set :SUFeedURL $RELAY_SPARKLE_FEED_URL" \
+        "$APP_DIR/Contents/Info.plist"
+fi
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
 
 # Ad-hoc signing preserves bundle integrity without requiring a paid Apple
@@ -49,7 +73,7 @@ codesign \
     --sign - \
     --entitlements "$ENTITLEMENTS" \
     "$APP_DIR"
-codesign --verify --strict --verbose=2 "$APP_DIR"
+codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 PAYLOAD_DIR="$WORK_DIR/payload"
 mkdir -p "$PAYLOAD_DIR"

@@ -9,5 +9,13 @@ struct RelayApplication: App {
         Settings {
             EmptyView()
         }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button(
+                    "Check for Updates…",
+                    action: RelayUpdateController.shared.checkForUpdates
+                )
+            }
+        }
     }
 }

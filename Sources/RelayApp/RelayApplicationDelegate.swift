@@ -10,6 +10,8 @@ final class RelayApplicationDelegate: NSObject, NSApplicationDelegate {
             RelayApplicationPresentation.activationPolicy
         )
 
+        _ = RelayUpdateController.shared
+
         let model = RelayAppModel()
         let panelController = RelayNotchPanelController(model: model)
         self.model = model

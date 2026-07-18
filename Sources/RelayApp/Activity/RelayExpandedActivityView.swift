@@ -26,6 +26,7 @@ struct RelayExpandedActivityView: View {
 
     @State private var selectedTaskID: String?
     @State private var operationState = RelayTaskOperationState()
+    private let updateController = RelayUpdateController.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +37,19 @@ struct RelayExpandedActivityView: View {
                 openInCodex: openSelectedTaskInCodex,
                 collapse: collapse
             )
+
+            if updateController.presentation.isVisible {
+                Divider().overlay(RelayPalette.hairline)
+
+                RelayUpdateBanner(
+                    presentation: updateController.presentation,
+                    canInstall: canInstallUpdate,
+                    install: updateController.installAvailableUpdate,
+                    deferUpdate: updateController.deferAvailableUpdate,
+                    retry: updateController.checkForUpdates,
+                    dismiss: updateController.dismissStatus
+                )
+            }
 
             Divider().overlay(RelayPalette.hairline)
 
@@ -156,6 +170,17 @@ struct RelayExpandedActivityView: View {
     private var selectedTask: RelayTaskActivity? {
         guard let selectedTaskID else { return nil }
         return activity.orderedTasks.first { $0.id == selectedTaskID }
+    }
+
+    private var canInstallUpdate: Bool {
+        let hasCommandDraft = !commandText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty
+        let controllerIsBusy: Bool = switch composerPhase {
+        case .listening, .sending: true
+        case .idle, .failed: false
+        }
+        return drafts.canDismiss && !hasCommandDraft && !controllerIsBusy
     }
 
     private func selectTask(_ task: RelayTaskActivity) {

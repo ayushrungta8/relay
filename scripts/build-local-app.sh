@@ -7,6 +7,7 @@ APP_DIR="$ROOT_DIR/dist/Relay.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
 SIGNING_IDENTITY_NAME="OpenClicky Local Development"
 EXPECTED_SIGNING_HASH="3DB137FA7E71AF2AD5FBE04774D711AD5295496D"
 SIGNING_KEYCHAIN="$HOME/Library/Keychains/OpenClickyDev.keychain-db"
@@ -16,11 +17,27 @@ swift build -c "$CONFIGURATION"
 BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
 cp "$BIN_DIR/RelayApp" "$MACOS_DIR/RelayApp"
+ditto "$BIN_DIR/Sparkle.framework" "$FRAMEWORKS_DIR/Sparkle.framework"
 chmod +x "$MACOS_DIR/RelayApp"
 cp "$ROOT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "$ROOT_DIR/Resources/Relay.icns" "$RESOURCES_DIR/Relay.icns"
+if [[ -n "${RELAY_VERSION:-}" ]]; then
+    /usr/libexec/PlistBuddy \
+        -c "Set :CFBundleShortVersionString $RELAY_VERSION" \
+        "$CONTENTS_DIR/Info.plist"
+fi
+if [[ -n "${RELAY_BUILD_NUMBER:-}" ]]; then
+    /usr/libexec/PlistBuddy \
+        -c "Set :CFBundleVersion $RELAY_BUILD_NUMBER" \
+        "$CONTENTS_DIR/Info.plist"
+fi
+if [[ -n "${RELAY_SPARKLE_FEED_URL:-}" ]]; then
+    /usr/libexec/PlistBuddy \
+        -c "Set :SUFeedURL $RELAY_SPARKLE_FEED_URL" \
+        "$CONTENTS_DIR/Info.plist"
+fi
 plutil -lint "$CONTENTS_DIR/Info.plist" >/dev/null
 
 IDENTITY_SEARCH_ARGS=()
@@ -82,7 +99,7 @@ codesign \
     --timestamp=none \
     --entitlements "$ROOT_DIR/Resources/Relay.entitlements" \
     "$APP_DIR"
-codesign --verify --strict --verbose=2 "$APP_DIR"
+codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 SIGNATURE_DETAILS="$(codesign -dv --verbose=4 "$APP_DIR" 2>&1)"
 if printf '%s\n' "$SIGNATURE_DETAILS" | grep -q 'Signature=adhoc'; then
