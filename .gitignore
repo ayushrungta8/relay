@@ -4,3 +4,6 @@ dist/
 .DS_Store
 *.xcuserstate
 .superpowers/
+
+# Generated launch-video assets, models, tooling, and renders
+/artifacts/launch-video/
