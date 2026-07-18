@@ -176,8 +176,9 @@ struct PushToTalkStateMachineTests {
         var machine = PushToTalkStateMachine()
 
         _ = machine.send(.pressed)
-        #expect(machine.send(.failed("offline")) == nil)
-        #expect(machine.state == .failed("offline"))
+        let failure = RelayPushToTalkFailure(message: "offline")
+        #expect(machine.send(.failed(failure)) == nil)
+        #expect(machine.state == .failed(failure))
         #expect(machine.send(.pressed) == .startListening)
         #expect(machine.state == .listening)
     }
@@ -308,6 +309,28 @@ struct PushToTalkCoordinatorTests {
         #expect(capture.stopCount == 1)
         #expect(await sink.count(of: .cancel) == 1)
         #expect(await sink.count(of: .finish) == 0)
+    }
+
+    @Test
+    func startFailurePreservesItsReadinessBlocker() async {
+        let coordinator = PushToTalkCoordinator(
+            microphone: FakeMicrophoneCapture(),
+            sink: RecordingAudioSink(
+                startError: ReadinessFixtureError.dictationDisabled
+            )
+        )
+
+        coordinator.press()
+
+        #expect(
+            await eventually {
+                guard case let .failed(failure) = coordinator.state else {
+                    return false
+                }
+                return failure.readinessState == .dictationDisabled
+                    && !failure.message.isEmpty
+            }
+        )
     }
 
     @Test
@@ -445,6 +468,17 @@ private actor BlockingStartAudioSink: RelayRealtimeAudioSink {
 
 private enum TestFailure: Error {
     case expected
+}
+
+private enum ReadinessFixtureError:
+    Error,
+    RelayVoiceReadinessFailure
+{
+    case dictationDisabled
+
+    var voiceReadinessState: RelayVoiceReadinessState? {
+        .dictationDisabled
+    }
 }
 
 private extension RelayAudioChunk {

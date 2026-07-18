@@ -24,6 +24,33 @@ public enum RelayVoiceReadinessState: Equatable, Sendable {
     case networkUnavailable
 }
 
+public protocol RelayVoiceReadinessFailure: Error {
+    var voiceReadinessState: RelayVoiceReadinessState? { get }
+}
+
+public struct RelayPushToTalkFailure: Equatable, Sendable {
+    public let message: String
+    public let readinessState: RelayVoiceReadinessState?
+
+    public init(
+        message: String,
+        readinessState: RelayVoiceReadinessState? = nil
+    ) {
+        self.message = message
+        self.readinessState = readinessState
+    }
+
+    public init(error: any Error) {
+        let description = (error as NSError).localizedDescription
+        message = description.isEmpty
+            ? String(describing: error)
+            : description
+        readinessState =
+            (error as? any RelayVoiceReadinessFailure)?
+                .voiceReadinessState
+    }
+}
+
 @MainActor
 public protocol RelayVoiceReadinessChecking: AnyObject {
     func currentState() -> RelayVoiceReadinessState

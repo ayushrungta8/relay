@@ -312,9 +312,9 @@ final class RelayAppModel {
         case .finishing:
             voiceAwaitingAnswer = true
             composerPhase = .sending
-        case let .failed(message):
+        case let .failed(failure):
             voiceAwaitingAnswer = false
-            composerPhase = .failed(message)
+            composerPhase = .failed(failure.message)
         }
     }
 

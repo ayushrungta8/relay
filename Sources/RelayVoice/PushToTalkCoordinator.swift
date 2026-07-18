@@ -54,7 +54,7 @@ public final class PushToTalkCoordinator {
                     return AudioSessionResult.cancelled
                 } catch {
                     return AudioSessionResult.failed(
-                        Self.message(for: error)
+                        RelayPushToTalkFailure(error: error)
                     )
                 }
             }
@@ -73,7 +73,7 @@ public final class PushToTalkCoordinator {
         } catch {
             microphone.stop()
             send(
-                .failed(Self.message(for: error))
+                .failed(RelayPushToTalkFailure(error: error))
             )
         }
     }
@@ -106,7 +106,7 @@ public final class PushToTalkCoordinator {
                 send(.completed)
             } catch {
                 await failSession(
-                    Self.message(for: error),
+                    RelayPushToTalkFailure(error: error),
                     sessionID: sessionID,
                     microphoneIsStopped: true
                 )
@@ -114,7 +114,9 @@ public final class PushToTalkCoordinator {
 
         case .cancelled:
             await failSession(
-                "Push-to-talk audio streaming was cancelled.",
+                RelayPushToTalkFailure(
+                    message: "Push-to-talk audio streaming was cancelled."
+                ),
                 sessionID: sessionID,
                 microphoneIsStopped: true
             )
@@ -166,13 +168,17 @@ public final class PushToTalkCoordinator {
         switch result {
         case .completed:
             await failSession(
-                "Microphone capture ended before release.",
+                RelayPushToTalkFailure(
+                    message: "Microphone capture ended before release."
+                ),
                 sessionID: sessionID,
                 microphoneIsStopped: false
             )
         case .cancelled:
             await failSession(
-                "Push-to-talk audio streaming was cancelled.",
+                RelayPushToTalkFailure(
+                    message: "Push-to-talk audio streaming was cancelled."
+                ),
                 sessionID: sessionID,
                 microphoneIsStopped: false
             )
@@ -186,7 +192,7 @@ public final class PushToTalkCoordinator {
     }
 
     private func failSession(
-        _ message: String,
+        _ failure: RelayPushToTalkFailure,
         sessionID: UInt64,
         microphoneIsStopped: Bool
     ) async {
@@ -205,7 +211,7 @@ public final class PushToTalkCoordinator {
         }
 
         clearSession()
-        send(.failed(message))
+        send(.failed(failure))
     }
 
     private func clearSession() {
@@ -225,19 +231,12 @@ public final class PushToTalkCoordinator {
         }
         return effect
     }
-
-    nonisolated private static func message(
-        for error: any Error
-    ) -> String {
-        let description = (error as NSError).localizedDescription
-        return description.isEmpty ? String(describing: error) : description
-    }
 }
 
 private enum AudioSessionResult: Sendable {
     case completed
     case cancelled
-    case failed(String)
+    case failed(RelayPushToTalkFailure)
 }
 
 private enum Termination: Sendable {

@@ -2,7 +2,7 @@ public enum PushToTalkState: Equatable, Sendable {
     case idle
     case listening
     case finishing
-    case failed(String)
+    case failed(RelayPushToTalkFailure)
 }
 
 public enum PushToTalkEvent: Equatable, Sendable {
@@ -10,7 +10,7 @@ public enum PushToTalkEvent: Equatable, Sendable {
     case released
     case cancelRequested
     case completed
-    case failed(String)
+    case failed(RelayPushToTalkFailure)
 }
 
 public enum PushToTalkEffect: Equatable, Sendable {

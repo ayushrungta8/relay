@@ -60,6 +60,23 @@ extension RelayMicrophoneCaptureError: LocalizedError {
     }
 }
 
+extension RelayMicrophoneCaptureError: RelayVoiceReadinessFailure {
+    public var voiceReadinessState: RelayVoiceReadinessState? {
+        switch self {
+        case .permissionDenied:
+            .microphoneDenied
+        case .permissionRestricted:
+            .microphoneRestricted
+        case .inputUnavailable:
+            .microphoneUnavailable
+        case .alreadyCapturing,
+             .invalidConfiguration,
+             .converterUnavailable:
+            nil
+        }
+    }
+}
+
 @MainActor
 public final class AVAudioEngineMicrophoneCapture:
     RelayMicrophoneCapturing
