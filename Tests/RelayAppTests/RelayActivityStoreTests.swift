@@ -131,6 +131,31 @@ struct RelayActivityStoreTests {
 
     @MainActor
     @Test
+    func pollsForCrossProcessUpdatesEverySecond() async {
+        let monitoring = MonitoringStub(
+            results: [.success(.init(tasks: [], usage: nil))]
+        )
+        let sleeps = SleepRecorder()
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            connect: {},
+            sleep: { duration in
+                await sleeps.record(duration)
+                throw CancellationError()
+            }
+        )
+
+        await store.start()
+        for _ in 0..<100 where await sleeps.durations().isEmpty {
+            await Task.yield()
+        }
+
+        #expect(await sleeps.durations().first == .seconds(1))
+    }
+
+    @MainActor
+    @Test
     func sendAndInterruptDelegateToTaskOperationsAndRefresh() async throws {
         let monitoring = MonitoringStub(
             results: [
