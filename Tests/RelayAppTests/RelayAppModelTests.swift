@@ -2,6 +2,7 @@ import Foundation
 import RelayCodexClient
 import RelayCodexBridge
 import RelayCore
+import RelayVoice
 import Testing
 @testable import RelayApp
 
@@ -193,6 +194,74 @@ struct RelayAppModelTests {
 
     @MainActor
     @Test
+    func firstVoiceAttemptShowsSetupWithoutStartingCapture() {
+        let readiness = VoiceReadinessSpy(
+            state: .needsMicrophoneRequest
+        )
+        var startCount = 0
+        let model = RelayAppModel(
+            commandHandler: CommandHandlerStub(
+                result: .success("unused")
+            ),
+            voiceReadiness: readiness,
+            startVoice: { startCount += 1 }
+        )
+
+        model.beginVoiceAttempt()
+
+        #expect(startCount == 0)
+        #expect(model.voiceSetup?.primaryAction == .requestPermissions)
+    }
+
+    @MainActor
+    @Test
+    func permissionCompletionRequiresAFreshVoiceAttempt() async {
+        let readiness = VoiceReadinessSpy(
+            state: .needsMicrophoneRequest,
+            requestResult: .ready
+        )
+        var startCount = 0
+        let model = RelayAppModel(
+            commandHandler: CommandHandlerStub(
+                result: .success("unused")
+            ),
+            voiceReadiness: readiness,
+            startVoice: { startCount += 1 }
+        )
+
+        model.beginVoiceAttempt()
+        await model.performVoiceSetupPrimaryAction()
+
+        #expect(startCount == 0)
+        #expect(model.voiceSetup?.title == "Voice is ready")
+
+        model.beginVoiceAttempt()
+
+        #expect(startCount == 1)
+        #expect(model.voiceSetup == nil)
+    }
+
+    @MainActor
+    @Test
+    func deniedVoicePermissionDoesNotBlockTextCommands() async {
+        let handler = CommandHandlerStub(result: .success("Text worked."))
+        let model = RelayAppModel(
+            commandHandler: handler,
+            voiceReadiness: VoiceReadinessSpy(
+                state: .microphoneDenied
+            )
+        )
+
+        model.beginVoiceAttempt()
+        model.commandText = "Use text instead"
+        await model.submitCommand()
+
+        #expect(await handler.prompts() == ["Use text instead"])
+        #expect(model.latestResponse == "Text worked.")
+    }
+
+    @MainActor
+    @Test
     func clearedWaitingStatePermanentlyPrunesResolvingOwnership() async {
         let monitoring = AppModelMonitoringStub(
             snapshots: [
@@ -229,6 +298,33 @@ struct RelayAppModelTests {
 
         await activityStore.refresh()
         #expect(model.pendingInteractions.isEmpty)
+    }
+}
+
+@MainActor
+private final class VoiceReadinessSpy: RelayVoiceReadinessChecking {
+    var state: RelayVoiceReadinessState
+    let requestResult: RelayVoiceReadinessState
+    private(set) var requestCount = 0
+
+    init(
+        state: RelayVoiceReadinessState,
+        requestResult: RelayVoiceReadinessState? = nil
+    ) {
+        self.state = state
+        self.requestResult = requestResult ?? state
+    }
+
+    func currentState() -> RelayVoiceReadinessState {
+        state
+    }
+
+    func requestRequiredPermissions() async
+        -> RelayVoiceReadinessState
+    {
+        requestCount += 1
+        state = requestResult
+        return requestResult
     }
 }
 

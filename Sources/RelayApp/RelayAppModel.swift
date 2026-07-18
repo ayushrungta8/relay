@@ -23,6 +23,9 @@ final class RelayAppModel {
     private var pendingInteractionTask: Task<Void, Never>?
     private var voiceAwaitingAnswer = false
     private let injectedActivityStore: RelayActivityStore?
+    private let voiceReadiness: any RelayVoiceReadinessChecking
+    private let injectedStartVoice: (@MainActor () -> Void)?
+    private let voiceSettingsOpener: RelayVoiceSettingsOpener
 
     private var loadedThreads: [CodexThread] = []
     private(set) var state: State = .idle
@@ -32,6 +35,8 @@ final class RelayAppModel {
     private(set) var isSpeaking = false
     private(set) var latestResponse: String?
     private(set) var chatMessages: [RelayChatMessage] = []
+    private(set) var voiceSetup: RelayVoiceSetupPresentation?
+    private(set) var isResolvingVoiceSetup = false
     private var observedPendingInteractions: [RelayPendingInteraction] = []
     private var resolvingInteractionsByID:
         [String: RetainedResolvingInteraction] = [:]
@@ -90,12 +95,19 @@ final class RelayAppModel {
             () -> any CodexThreadProviding)? = nil,
         commandHandler: (any RelayCommandHandling)? = nil,
         pendingInteractionBroker: RelayPendingInteractionBroker? = nil,
-        activityStore: RelayActivityStore? = nil
+        activityStore: RelayActivityStore? = nil,
+        voiceReadiness: any RelayVoiceReadinessChecking =
+            RelayVoiceReadinessService(),
+        startVoice: (@MainActor () -> Void)? = nil,
+        voiceSettingsOpener: RelayVoiceSettingsOpener = .init()
     ) {
         self.providerFactory = providerFactory
         self.commandHandler = commandHandler
         self.pendingInteractionBroker = pendingInteractionBroker
         injectedActivityStore = activityStore
+        self.voiceReadiness = voiceReadiness
+        injectedStartVoice = startVoice
+        self.voiceSettingsOpener = voiceSettingsOpener
         observeActivityStore(activityStore)
     }
 
@@ -217,6 +229,44 @@ final class RelayAppModel {
         composerPhase = .idle
     }
 
+    func beginVoiceAttempt() {
+        guard canBeginCommand else { return }
+        let readiness = voiceReadiness.currentState()
+        guard readiness == .ready else {
+            voiceSetup = RelayVoiceSetupPresentation(state: readiness)
+            return
+        }
+
+        voiceSetup = nil
+        latestResponse = nil
+        voiceAwaitingAnswer = false
+        if let injectedStartVoice {
+            injectedStartVoice()
+        } else {
+            runtime?.pushToTalk.press()
+        }
+    }
+
+    func performVoiceSetupPrimaryAction() async {
+        guard let action = voiceSetup?.primaryAction else { return }
+        switch action {
+        case .requestPermissions:
+            guard !isResolvingVoiceSetup else { return }
+            isResolvingVoiceSetup = true
+            let state = await voiceReadiness.requestRequiredPermissions()
+            isResolvingVoiceSetup = false
+            voiceSetup = state == .ready
+                ? .ready
+                : RelayVoiceSetupPresentation(state: state)
+        case let .openSettings(destination):
+            voiceSettingsOpener.open(destination)
+        }
+    }
+
+    func dismissVoiceSetup() {
+        voiceSetup = nil
+    }
+
     func pendingInteraction(
         threadID: String
     ) -> RelayPendingInteraction? {
@@ -279,15 +329,11 @@ final class RelayAppModel {
     }
 
     private func handleShortcut(_ event: RelayGlobalShortcutEvent) {
-        guard let runtime else { return }
-
         switch event {
         case .pressed:
-            guard canBeginCommand else { return }
-            latestResponse = nil
-            voiceAwaitingAnswer = false
-            runtime.pushToTalk.press()
+            beginVoiceAttempt()
         case .released:
+            guard let runtime else { return }
             guard runtime.pushToTalk.state == .listening else {
                 return
             }
@@ -314,7 +360,12 @@ final class RelayAppModel {
             composerPhase = .sending
         case let .failed(failure):
             voiceAwaitingAnswer = false
-            composerPhase = .failed(failure.message)
+            composerPhase = .idle
+            voiceSetup = if let readiness = failure.readinessState {
+                RelayVoiceSetupPresentation(state: readiness)
+            } else {
+                .runtimeFailure(message: failure.message)
+            }
         }
     }
 
@@ -340,7 +391,8 @@ final class RelayAppModel {
         case let .failed(message):
             isSpeaking = false
             voiceAwaitingAnswer = false
-            composerPhase = .failed(message)
+            composerPhase = .idle
+            voiceSetup = .runtimeFailure(message: message)
         }
     }
 
