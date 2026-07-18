@@ -26,6 +26,7 @@ final class RelayAppModel {
     private let voiceReadiness: any RelayVoiceReadinessChecking
     private let injectedStartVoice: (@MainActor () -> Void)?
     private let voiceSettingsOpener: RelayVoiceSettingsOpener
+    let settings: RelaySettingsStore
 
     private var loadedThreads: [CodexThread] = []
     private(set) var state: State = .idle
@@ -37,6 +38,7 @@ final class RelayAppModel {
     private(set) var chatMessages: [RelayChatMessage] = []
     private(set) var voiceSetup: RelayVoiceSetupPresentation?
     private(set) var isResolvingVoiceSetup = false
+    private(set) var settingsErrorMessage: String?
     private var observedPendingInteractions: [RelayPendingInteraction] = []
     private var resolvingInteractionsByID:
         [String: RetainedResolvingInteraction] = [:]
@@ -96,6 +98,7 @@ final class RelayAppModel {
         commandHandler: (any RelayCommandHandling)? = nil,
         pendingInteractionBroker: RelayPendingInteractionBroker? = nil,
         activityStore: RelayActivityStore? = nil,
+        settings: RelaySettingsStore = RelaySettingsStore(),
         voiceReadiness: any RelayVoiceReadinessChecking =
             RelayVoiceReadinessService(),
         startVoice: (@MainActor () -> Void)? = nil,
@@ -108,6 +111,7 @@ final class RelayAppModel {
         self.voiceReadiness = voiceReadiness
         injectedStartVoice = startVoice
         self.voiceSettingsOpener = voiceSettingsOpener
+        self.settings = settings
         observeActivityStore(activityStore)
     }
 
@@ -120,6 +124,7 @@ final class RelayAppModel {
         guard runtime == nil, commandHandler == nil else { return }
 
         let runtime = RelayAppRuntime(
+            settings: settings,
             onVoiceEvent: { [weak self] event in
                 await self?.handleVoiceEvent(event)
             },
@@ -142,6 +147,20 @@ final class RelayAppModel {
             }
         } catch {
             composerPhase = .failed(error.localizedDescription)
+        }
+    }
+
+    func applySettingsChange(_ change: RelaySettingsChange) {
+        guard let runtime else { return }
+        do {
+            try runtime.applySettingsChange(change)
+            settingsErrorMessage = nil
+        } catch {
+            if case .shortcut = change,
+               let activeShortcut = runtime.activeShortcut {
+                settings.restoreShortcutWithoutNotifying(activeShortcut)
+            }
+            settingsErrorMessage = error.localizedDescription
         }
     }
 

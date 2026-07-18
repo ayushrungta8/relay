@@ -28,7 +28,8 @@ public final class AppleSpeechSynthesizer:
     @preconcurrency AVSpeechSynthesizerDelegate
 {
     private let synthesizer: AVSpeechSynthesizer
-    private let explicitVoiceIdentifier: String?
+    private var explicitVoiceIdentifier: String?
+    private var isEnabled: Bool
     private let rate: Float
     private let pitchMultiplier: Float
     private let onSpeakingChange: @MainActor @Sendable (Bool) -> Void
@@ -45,6 +46,7 @@ public final class AppleSpeechSynthesizer:
     ///     (`false`).
     public init(
         voiceIdentifier: String? = nil,
+        isEnabled: Bool = true,
         rate: Float = AVSpeechUtteranceDefaultSpeechRate,
         pitchMultiplier: Float = 1.0,
         synthesizer: AVSpeechSynthesizer = AVSpeechSynthesizer(),
@@ -52,6 +54,7 @@ public final class AppleSpeechSynthesizer:
     ) {
         self.synthesizer = synthesizer
         explicitVoiceIdentifier = voiceIdentifier
+        self.isEnabled = isEnabled
         self.rate = rate
         self.pitchMultiplier = pitchMultiplier
         self.onSpeakingChange = onSpeakingChange
@@ -60,6 +63,7 @@ public final class AppleSpeechSynthesizer:
     }
 
     public func speak(_ text: String) {
+        guard isEnabled else { return }
         let trimmed = text.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
@@ -76,6 +80,17 @@ public final class AppleSpeechSynthesizer:
             utterance.voice = voice
         }
         synthesizer.speak(utterance)
+    }
+
+    public func configure(
+        enabled: Bool,
+        voiceIdentifier: String?
+    ) {
+        isEnabled = enabled
+        explicitVoiceIdentifier = voiceIdentifier
+        if !enabled {
+            stop()
+        }
     }
 
     public func stop() {

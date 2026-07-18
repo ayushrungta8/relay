@@ -89,6 +89,27 @@ struct AppleSpeechCommandSinkTests {
     }
 
     @Test
+    func disabledSpokenResponsesDoNotSpeakTheCompletedAnswer() async throws {
+        let transcriber = SpeechTranscriberStub(transcript: "Status")
+        let controller = SpeechCommandHandlerStub(
+            result: .success("Everything is complete.")
+        )
+        let synthesizer = SpeechSynthesizerSpy()
+        let sink = AppleSpeechCommandSink(
+            transcriber: transcriber,
+            commandHandler: controller,
+            synthesizer: synthesizer,
+            shouldSpeakResponses: { false }
+        )
+
+        try await sink.start()
+        try await sink.finishAndSend()
+
+        #expect(await synthesizer.spokenTexts().isEmpty)
+        #expect(await synthesizer.calls() == [.stop])
+    }
+
+    @Test
     func controllerFailureIsPublishedAndCanBeRetried() async throws {
         let transcriber = SpeechTranscriberStub(
             transcripts: ["First command", "Second command"]

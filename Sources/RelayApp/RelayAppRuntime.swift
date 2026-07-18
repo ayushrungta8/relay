@@ -11,14 +11,20 @@ final class RelayAppRuntime {
     let activityStore: RelayActivityStore
     let pendingInteractionBroker: RelayPendingInteractionBroker
 
-    private let shortcutMonitor: any RelayGlobalShortcutMonitoring
+    private let settings: RelaySettingsStore
+    private let shortcutCoordinator: RelayShortcutCoordinator
+    private let voiceSynthesizer: AppleSpeechSynthesizer
 
     init(
+        settings: RelaySettingsStore,
         onVoiceEvent: @escaping @Sendable
             (RelayVoiceControllerEvent) async -> Void,
         onPushToTalkStateChange: @escaping @MainActor @Sendable
-            (PushToTalkState) -> Void
+            (PushToTalkState) -> Void,
+        shortcutCoordinator: RelayShortcutCoordinator = .init()
     ) {
+        self.settings = settings
+        self.shortcutCoordinator = shortcutCoordinator
         let rpc = PersistentCodexAppServerClient()
         let controllerThreadStore = RelayControllerThreadFileStore()
         let controllerIdentity = RelayControllerIdentity(
@@ -71,13 +77,21 @@ final class RelayAppRuntime {
             router: router
         )
         let voiceSynthesizer = AppleSpeechSynthesizer(
+            voiceIdentifier: settings.speechVoiceIdentifier,
+            isEnabled: settings.speaksVoiceResponses,
             onSpeakingChange: { isSpeaking in
                 Task { await onVoiceEvent(.speaking(isSpeaking)) }
             }
         )
+        self.voiceSynthesizer = voiceSynthesizer
         let voiceSink = AppleSpeechCommandSink(
             commandHandler: controllerRuntime,
             synthesizer: voiceSynthesizer,
+            shouldSpeakResponses: { [weak settings] in
+                await MainActor.run {
+                    settings?.speaksVoiceResponses ?? true
+                }
+            },
             onEvent: onVoiceEvent
         )
 
@@ -87,21 +101,44 @@ final class RelayAppRuntime {
             sink: voiceSink,
             onStateChange: onPushToTalkStateChange
         )
-        shortcutMonitor = CarbonGlobalShortcutMonitor()
     }
 
     func startShortcut(
         handler: @escaping @MainActor @Sendable
             (RelayGlobalShortcutEvent) -> Void
     ) throws {
-        try shortcutMonitor.start(
-            shortcut: .default,
+        try shortcutCoordinator.start(
+            shortcut: settings.shortcut,
             handler: handler
         )
     }
 
+    var activeShortcut: RelayGlobalShortcut? {
+        shortcutCoordinator.activeShortcut
+    }
+
+    func applySettingsChange(_ change: RelaySettingsChange) throws {
+        switch change {
+        case let .shortcut(shortcut):
+            try shortcutCoordinator.replaceShortcut(shortcut)
+        case .speaksVoiceResponses, .speechVoiceIdentifier:
+            voiceSynthesizer.configure(
+                enabled: settings.speaksVoiceResponses,
+                voiceIdentifier: settings.speechVoiceIdentifier
+            )
+        case .showAtLaunch,
+             .automaticPeeks,
+             .followsPointerAcrossDisplays,
+             .automaticallyChecksForUpdates,
+             .updateCadence,
+             .autoApplyResetCredits,
+             .restoredDefaults:
+            break
+        }
+    }
+
     isolated deinit {
-        shortcutMonitor.stop()
+        shortcutCoordinator.stop()
     }
 
     private static var controllerWorkingDirectory: String {

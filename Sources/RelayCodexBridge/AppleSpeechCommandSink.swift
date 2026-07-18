@@ -25,6 +25,7 @@ public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
     private let transcriber: any RelaySpeechTranscribing
     private let commandHandler: any RelayCommandHandling
     private let synthesizer: any RelaySpeechSynthesizing
+    private let shouldSpeakResponses: @Sendable () async -> Bool
     private let onEvent:
         @Sendable (RelayVoiceControllerEvent) async -> Void
 
@@ -36,12 +37,16 @@ public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
         transcriber: any RelaySpeechTranscribing = AppleSpeechTranscriber(),
         commandHandler: any RelayCommandHandling,
         synthesizer: any RelaySpeechSynthesizing,
+        shouldSpeakResponses: @escaping @Sendable () async -> Bool = {
+            true
+        },
         onEvent: @escaping @Sendable
             (RelayVoiceControllerEvent) async -> Void = { _ in }
     ) {
         self.transcriber = transcriber
         self.commandHandler = commandHandler
         self.synthesizer = synthesizer
+        self.shouldSpeakResponses = shouldSpeakResponses
         self.onEvent = onEvent
     }
 
@@ -140,6 +145,7 @@ public actor AppleSpeechCommandSink: RelayRealtimeAudioSink {
     /// never interrupted by the previous reply.
     private func speakAnswer(_ answer: String) async {
         guard activeSessionID == nil else { return }
+        guard await shouldSpeakResponses() else { return }
         let spoken = RelaySpokenSummary.make(from: answer)
         guard !spoken.isEmpty else { return }
         await synthesizer.speak(spoken)
