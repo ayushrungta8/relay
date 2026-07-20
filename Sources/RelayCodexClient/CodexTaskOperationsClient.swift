@@ -62,13 +62,20 @@ public actor CodexTaskOperationsClient: CodexTaskOperating {
 
     private let rpc: any CodexRPCRequesting
     private let sendToDesktopTask: SendToDesktopTask?
+    private let createProjectlessDirectory:
+        @Sendable (_ prompt: String) throws -> String
 
     public init(
         rpc: any CodexRPCRequesting,
-        sendToDesktopTask: SendToDesktopTask? = nil
+        sendToDesktopTask: SendToDesktopTask? = nil,
+        createProjectlessDirectory:
+            (@Sendable (_ prompt: String) throws -> String)? = nil
     ) {
         self.rpc = rpc
         self.sendToDesktopTask = sendToDesktopTask
+        self.createProjectlessDirectory = createProjectlessDirectory ?? {
+            try Self.makeProjectlessDirectory(for: $0)
+        }
     }
 
     public func listTasks(limit: Int = 25) async throws -> [CodexThread] {
@@ -115,14 +122,13 @@ public actor CodexTaskOperationsClient: CodexTaskOperating {
         cwd: String?
     ) async throws -> CodexTaskLaunch {
         let prompt = try normalizedPrompt(prompt)
-        var startParameters: [String: JSONValue] = [
+        let cwd = try cwd ?? createProjectlessDirectory(prompt)
+        let startParameters: [String: JSONValue] = [
             "approvalPolicy": .string("never"),
+            "cwd": .string(cwd),
             "ephemeral": .bool(false),
             "sandbox": .string("workspace-write"),
         ]
-        if let cwd, !cwd.isEmpty {
-            startParameters["cwd"] = .string(cwd)
-        }
 
         let started = try await request(
             method: "thread/start",
@@ -247,6 +253,63 @@ public actor CodexTaskOperationsClient: CodexTaskOperating {
             throw CodexTaskOperationsError.emptyPrompt
         }
         return normalized
+    }
+
+    static func makeProjectlessDirectory(
+        for prompt: String,
+        root: URL? = nil,
+        now: Date = Date(),
+        fileManager: FileManager = .default
+    ) throws -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let components = calendar.dateComponents(
+            [.year, .month, .day],
+            from: now
+        )
+        let date = String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0
+        )
+        let base = root
+            ?? fileManager.homeDirectoryForCurrentUser
+                .appending(path: "Documents/Codex")
+        let dateDirectory = base.appending(
+            path: date,
+            directoryHint: .isDirectory
+        )
+        try fileManager.createDirectory(
+            at: dateDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let words = prompt.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        let readableSlug = words.prefix(8).joined(separator: "-")
+        let slug = String(
+            (readableSlug.isEmpty ? "relay-task" : readableSlug).prefix(48)
+        )
+
+        for suffix in 1...1_000 {
+            let name = suffix == 1 ? slug : "\(slug)-\(suffix)"
+            let candidate = dateDirectory.appending(
+                path: name,
+                directoryHint: .isDirectory
+            )
+            guard !fileManager.fileExists(atPath: candidate.path) else {
+                continue
+            }
+            try fileManager.createDirectory(
+                at: candidate,
+                withIntermediateDirectories: false
+            )
+            return candidate.path
+        }
+
+        throw CocoaError(.fileWriteFileExists)
     }
 
     private func request<Result: Decodable>(

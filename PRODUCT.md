@@ -29,6 +29,11 @@ actually necessary.
 Relay makes Codex background work legible and actionable without becoming a
 second Codex client.
 
+When Relay hands off new work, it always creates a new task that is visible in
+Codex. Project work starts in the resolved existing project directory; general
+questions and Mac or web actions start as normal projectless Codex chats. Relay
+does not append new requests to an existing task or create hidden branches.
+
 ## Brand Personality
 
 Calm, focused, and native. Relay should feel like a precise macOS system

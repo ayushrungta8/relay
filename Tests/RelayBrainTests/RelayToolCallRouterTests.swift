@@ -136,32 +136,19 @@ struct RelayToolCallRouterTests {
     }
 
     @Test
-    func sendToTaskRoutesTheFollowUpAndReturnsAnAcknowledgement() async throws {
+    func startTaskWithoutWorkingDirectoryCreatesProjectlessTask() async throws {
         let operations = TaskOperationsSpy()
         let router = RelayToolCallRouter(operations: operations)
 
         let result = await router.route(
-            toolName: "relay_send_to_task",
-            argumentsJSON: """
-                {"id":"task-3","prompt":"Also cover the empty state."}
-                """
+            toolName: "relay_start_task",
+            argumentsJSON: #"{"prompt":"Change the system theme"}"#
         )
 
         #expect(result.success)
-        let object = try resultObject(result)
-        #expect(object["ok"] as? Bool == true)
-        #expect(object["taskId"] as? String == "task-3")
-        #expect(object["message"] as? String == "Prompt sent to task.")
-
-        let calls = await operations.recordedCalls()
         #expect(
-            calls
-                == [
-                    .send(
-                        id: "task-3",
-                        prompt: "Also cover the empty state."
-                    ),
-                ]
+            await operations.recordedCalls()
+                == [.start(prompt: "Change the system theme", cwd: nil)]
         )
     }
 
@@ -193,10 +180,6 @@ struct RelayToolCallRouterTests {
             (
                 "relay_start_task",
                 #"{"prompt":"Do work","cwd":"/Projects/Relay","extra":true}"#
-            ),
-            (
-                "relay_send_to_task",
-                #"{"id":"task-1","prompt":"Continue","extra":true}"#
             ),
             ("relay_interrupt_task", #"{"id":"task-1","extra":true}"#),
         ]
@@ -242,12 +225,7 @@ struct RelayToolCallRouterTests {
             ),
             (
                 "relay_start_task",
-                #"{"prompt":"Do work"}"#,
-                "Missing required argument 'cwd'."
-            ),
-            (
-                "relay_send_to_task",
-                #"{"id":"task-1","prompt":"   "}"#,
+                #"{"prompt":"   "}"#,
                 "Argument 'prompt' must not be empty."
             ),
             (
@@ -382,10 +360,6 @@ struct RelayToolCallRouterTests {
                 "relay_start_task",
                 #"{"prompt":"Do work","cwd":"/tmp"}"#
             ),
-            (
-                "relay_send_to_task",
-                #"{"id":"task-1","prompt":"Continue"}"#
-            ),
             ("relay_interrupt_task", #"{"id":"task-1"}"#),
         ]
     )
@@ -426,8 +400,7 @@ private actor TaskOperationsSpy: RelayTaskOperations {
     enum Call: Sendable, Equatable {
         case list
         case get(id: String)
-        case start(prompt: String, cwd: String)
-        case send(id: String, prompt: String)
+        case start(prompt: String, cwd: String?)
         case interrupt(id: String)
     }
 
@@ -463,16 +436,11 @@ private actor TaskOperationsSpy: RelayTaskOperations {
 
     func startTask(
         prompt: String,
-        cwd: String
+        cwd: String?
     ) async throws -> RelayTaskSummary {
         calls.append(.start(prompt: prompt, cwd: cwd))
         try failIfRequested()
         return startedTask
-    }
-
-    func sendToTask(id: String, prompt: String) async throws {
-        calls.append(.send(id: id, prompt: prompt))
-        try failIfRequested()
     }
 
     func interruptTask(id: String) async throws {

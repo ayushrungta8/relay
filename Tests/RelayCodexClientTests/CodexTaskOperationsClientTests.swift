@@ -59,6 +59,12 @@ struct CodexTaskOperationsClientTests {
         #expect(
             await rpc.parameter(
                 method: "thread/start",
+                key: "cwd"
+            ) == .string("/Users/ayushrungta/Work/Relay")
+        )
+        #expect(
+            await rpc.parameter(
+                method: "thread/start",
                 key: "approvalPolicy"
             ) == .string("never")
         )
@@ -67,6 +73,61 @@ struct CodexTaskOperationsClientTests {
                 method: "thread/start",
                 key: "sandbox"
             ) == .string("workspace-write")
+        )
+    }
+
+    @Test
+    func startsProjectlessWorkInANormalCodexChatDirectory() async throws {
+        let rpc = TaskOperationsFixtureRPC()
+        let service = CodexTaskOperationsClient(
+            rpc: rpc,
+            createProjectlessDirectory: { prompt in
+                #expect(prompt == "Change the system theme")
+                return "/Users/test/Documents/Codex/2026-07-20/change-theme"
+            }
+        )
+
+        _ = try await service.startTask(
+            prompt: "Change the system theme",
+            cwd: nil
+        )
+
+        #expect(
+            await rpc.parameter(
+                method: "thread/start",
+                key: "cwd"
+            ) == .string(
+                "/Users/test/Documents/Codex/2026-07-20/change-theme"
+            )
+        )
+    }
+
+    @Test
+    func projectlessDirectoryIsDatedReadableAndUnique() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date(timeIntervalSince1970: 1_784_563_200)
+
+        let first = try CodexTaskOperationsClient.makeProjectlessDirectory(
+            for: "Change my system theme to dark mode",
+            root: root,
+            now: now
+        )
+        let second = try CodexTaskOperationsClient.makeProjectlessDirectory(
+            for: "Change my system theme to dark mode",
+            root: root,
+            now: now
+        )
+
+        #expect(first.contains("change-my-system-theme-to-dark-mode"))
+        #expect(second.hasSuffix("-2"))
+        var isDirectory: ObjCBool = false
+        #expect(
+            FileManager.default.fileExists(
+                atPath: first,
+                isDirectory: &isDirectory
+            ) && isDirectory.boolValue
         )
     }
 
