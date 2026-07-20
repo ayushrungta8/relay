@@ -131,8 +131,10 @@ public enum RelayDynamicTools {
                     "cwd": RelayJSONSchemaProperty(
                         description: """
                         Absolute existing working-directory path for the worker \
-                        task. Resolve it from the selected task or a uniquely \
-                        matching recent project; never invent a path.
+                        task. Use a selected or recent project's path only when \
+                        the request belongs to that project. For a general Mac \
+                        or web action, use the controller's configured working \
+                        directory as a neutral location. Never invent a path.
                         """
                     ),
                 ],

@@ -79,6 +79,8 @@ struct RelayContractsTests {
         #expect(instructions.contains("rolling 24 hours"))
         #expect(instructions.contains("what’s the status?"))
         #expect(instructions.contains("relay_send_to_task"))
+        #expect(instructions.contains("reference hint, not the default scope"))
+        #expect(instructions.contains("general mac or web actions"))
         #expect(instructions.contains("never invent a path"))
         #expect(instructions.contains("finish the controller turn immediately"))
         #expect(instructions.contains("succinct"))
