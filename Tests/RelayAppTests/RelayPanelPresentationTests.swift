@@ -244,7 +244,7 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
-    func nativeNotchCompactSourceRemovesPillChromeAndCopy() throws {
+    func nativeNotchCompactSourceUsesOnlyBoundaryChromeAndCounters() throws {
         let label = try relayProjectSource(
             "Sources/RelayApp/Activity/RelayCompactSummaryLabel.swift"
         )
@@ -257,6 +257,7 @@ struct RelayPanelPresentationTests {
         #expect(!label.contains("chevron.down"))
         #expect(root.contains("usesNativeCompactNotch"))
         #expect(root.contains("compactAwareShellFill"))
+        #expect(root.contains("RelayCompactBoundaryUnderline"))
     }
 
     @Test

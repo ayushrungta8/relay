@@ -74,6 +74,11 @@ struct RelayNotchRootView: View {
                         safeArea: safeArea,
                         expand: expand
                     )
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .top
+                    )
                 case .expanded:
                     RelayExpandedActivityView(
                         activity: activity,
@@ -120,8 +125,11 @@ struct RelayNotchRootView: View {
             }
         }
         .clipShape(notchShape)
-        .overlay {
-            if presentation == .expanded {
+        .overlay(alignment: .bottom) {
+            switch presentation {
+            case .compact:
+                RelayCompactBoundaryUnderline()
+            case .expanded:
                 notchShape
                     .stroke(edgeLighting, lineWidth: 1)
                     .mask {
@@ -133,6 +141,8 @@ struct RelayNotchRootView: View {
                     }
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
+            case .hidden, .peek:
+                EmptyView()
             }
         }
         .contentShape(notchShape)

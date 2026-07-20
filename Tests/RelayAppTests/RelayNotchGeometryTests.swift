@@ -41,7 +41,7 @@ struct RelayNotchGeometryTests {
     }
 
     @Test
-    func builtInNotchCompactUsesOnlyTheNotchBand() {
+    func builtInNotchCompactAddsRoomForTheBoundaryBelowTheNotch() {
         let screen = CGRect(x: 0, y: 0, width: 1_512, height: 982)
         let safeArea = RelayNotchSafeArea(
             topInset: 38,
@@ -70,7 +70,7 @@ struct RelayNotchGeometryTests {
         #expect(
             frame.size == CGSize(
                 width: safeArea.compactCounterPanelWidth,
-                height: 38
+                height: 41
             )
         )
         #expect(frame.width < 400)
@@ -104,14 +104,14 @@ struct RelayNotchGeometryTests {
         #expect(
             frame.size == CGSize(
                 width: safeArea.compactCounterPanelWidth,
-                height: 38
+                height: 41
             )
         )
         #expect(frame.width > safeArea.compactCenterClearanceWidth)
     }
 
     @Test
-    func notchlessOverlayUsesTheAbsoluteScreenTop() {
+    func notchlessOverlayExposesItsCompactHoverBoundaryAtScreenTop() {
         let screen = CGRect(x: 0, y: 0, width: 1_920, height: 1_080)
         let visible = CGRect(x: 0, y: 0, width: 1_920, height: 1_055)
         let frame = RelayNotchGeometry.frame(
@@ -124,7 +124,7 @@ struct RelayNotchGeometryTests {
         )
 
         #expect(frame.maxY == screen.maxY)
-        #expect(frame.size == CGSize(width: 28, height: 28))
+        #expect(frame.size == CGSize(width: 254, height: 28))
     }
 
     @Test

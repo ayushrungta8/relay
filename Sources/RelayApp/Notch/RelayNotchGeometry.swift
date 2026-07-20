@@ -38,11 +38,7 @@ enum RelayNotchGeometry {
                 targetWidth(for: presentation)
             }
         case .compact:
-            if hasCameraHousing {
-                safeArea.compactCounterPanelWidth
-            } else {
-                RelayNotchSafeArea.notchlessCompactDiameter
-            }
+            safeArea.compactCounterPanelWidth
         case .hidden, .expanded:
             targetWidth(for: presentation)
         }
@@ -55,6 +51,7 @@ enum RelayNotchGeometry {
         case .compact:
             if hasCameraHousing {
                 safeArea.topInset
+                    + RelayNotchSafeArea.compactBoundaryDepth
             } else {
                 RelayNotchSafeArea.notchlessCompactDiameter
             }

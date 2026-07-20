@@ -5,6 +5,7 @@ struct RelayNotchSafeArea: Equatable, Sendable {
     static let minimumPeekEarWidth = 96.0
     static let compactCounterDiameter = 18.0
     static let compactCounterTargetWidth = 32.0
+    static let compactBoundaryDepth = 3.0
     static let notchlessCompactDiameter = 28.0
 
     let topInset: Double
