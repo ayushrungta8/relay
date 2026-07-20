@@ -39,7 +39,7 @@ struct RelayNotchRootView: View {
     var body: some View {
         ZStack {
             notchShape
-                .fill(shellFill)
+                .fill(compactAwareShellFill)
 
             if presentation == .expanded {
                 RelayAmbientLightView(
@@ -223,6 +223,18 @@ struct RelayNotchRootView: View {
             AnyShapeStyle(.black)
         case .hidden, .expanded:
             AnyShapeStyle(shellLighting)
+        }
+    }
+
+    private var usesNativeCompactNotch: Bool {
+        presentation == .compact && safeArea.topInset > 0
+    }
+
+    private var compactAwareShellFill: AnyShapeStyle {
+        if usesNativeCompactNotch || presentation == .compact {
+            AnyShapeStyle(Color.clear)
+        } else {
+            shellFill
         }
     }
 

@@ -35,7 +35,8 @@ struct RelayActivityPresentation {
     }
 
     var compactAccessibilityCopy: String {
-        compactSummaries.map(\.copy).joined(separator: ", ")
+        let copy = compactSummaries.map(\.copy).joined(separator: ", ")
+        return copy.isEmpty ? "All clear" : copy
     }
 
     var compactAttentionCounter: RelayCompactCounterPresentation? {

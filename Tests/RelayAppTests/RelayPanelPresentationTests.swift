@@ -202,6 +202,22 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func nativeNotchCompactSourceRemovesPillChromeAndCopy() throws {
+        let label = try relayProjectSource(
+            "Sources/RelayApp/Activity/RelayCompactSummaryLabel.swift"
+        )
+        let root = try relayProjectSource(
+            "Sources/RelayApp/Activity/RelayNotchRootView.swift"
+        )
+
+        #expect(label.contains("notchedCounters"))
+        #expect(!label.contains("Text(primaryCopy)"))
+        #expect(!label.contains("chevron.down"))
+        #expect(root.contains("usesNativeCompactNotch"))
+        #expect(root.contains("compactAwareShellFill"))
+    }
+
+    @Test
     func hostingViewDoesNotPublishWindowSizingConstraints() {
         let host = NSHostingView(rootView: Color.clear)
 

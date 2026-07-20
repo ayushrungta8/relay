@@ -62,6 +62,7 @@ struct RelayActivityPresentationTests {
         #expect(presentation.compactPrimaryCopy == "All clear")
         #expect(presentation.compactSecondaryCopy == nil)
         #expect(presentation.compactState == .idle)
+        #expect(presentation.compactAccessibilityCopy == "All clear")
     }
 
     @Test

@@ -8,80 +8,105 @@ struct RelayCompactSummaryLabel: View {
     var body: some View {
         Group {
             if safeArea.topInset > 0 {
-                HStack(spacing: 0) {
-                    primaryStatus
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Color.clear
-                        .frame(width: safeArea.contentClearanceWidth)
-                        .accessibilityHidden(true)
-
-                    chevron
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
+                notchedCounters
             } else {
-                HStack(spacing: 0) {
-                    primaryStatus
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Spacer(minLength: 12)
-
-                    trailingStatus
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
+                notchlessFallback
             }
         }
-        .padding(.horizontal, 14)
-        .frame(height: 42)
         .contentShape(.rect)
     }
 
-    private var primaryStatus: some View {
-        HStack(spacing: 8) {
+    private var notchedCounters: some View {
+        HStack(spacing: 0) {
+            counterSlot(
+                activity.compactAttentionCounter,
+                horizontalAlignment: .trailing
+            )
+
+            Color.clear
+                .frame(width: safeArea.compactCenterClearanceWidth)
+                .accessibilityHidden(true)
+
             if voiceActivity.isActive {
                 RelayVoiceActivityDot(activity: voiceActivity)
+                    .scaleEffect(0.9)
+                    .frame(
+                        width: RelayNotchSafeArea.compactCounterTargetWidth
+                    )
             } else {
-                RelayCompactStatusDot(state: activity.compactState)
+                counterSlot(
+                    activity.compactRunningCounter,
+                    horizontalAlignment: .leading
+                )
             }
-
-            Text(primaryCopy)
-                .font(.body)
-                .bold()
-                .foregroundStyle(RelayPalette.primaryText)
-                .lineLimit(1)
-                .contentTransition(.opacity)
         }
+        .frame(height: safeArea.topInset)
+        .animation(counterAnimation, value: activity.compactAttentionCounter)
+        .animation(counterAnimation, value: activity.compactRunningCounter)
     }
 
-    private var trailingStatus: some View {
-        HStack(spacing: 7) {
-            if !voiceActivity.isActive {
-                if activity.runningTasks.isEmpty == false {
-                    RelayRunningGlyph()
-                }
+    private var notchlessFallback: some View {
+        ZStack {
+            Circle()
+                .fill(RelayPalette.shell)
 
-                if let secondary = activity.compactSecondaryCopy {
-                    Text(secondary)
-                        .font(.caption)
-                        .foregroundStyle(RelayPalette.secondaryText)
-                        .lineLimit(1)
-                }
+            if voiceActivity.isActive {
+                RelayVoiceActivityDot(activity: voiceActivity)
+                    .scaleEffect(0.9)
+            } else if let counter = activity.compactAttentionCounter
+                ?? activity.compactRunningCounter
+            {
+                RelayCompactCounterView(counter: counter)
+            } else {
+                Image(systemName: "waveform")
+                    .font(.caption)
+                    .foregroundStyle(RelayPalette.tertiaryText)
+                    .accessibilityHidden(true)
             }
-
-            chevron
         }
+        .frame(
+            width: RelayNotchSafeArea.notchlessCompactDiameter,
+            height: RelayNotchSafeArea.notchlessCompactDiameter
+        )
     }
 
-    private var chevron: some View {
-        Image(systemName: "chevron.down")
-            .font(.caption)
-            .foregroundStyle(RelayPalette.tertiaryText)
-            .accessibilityHidden(true)
+    private func counterSlot(
+        _ counter: RelayCompactCounterPresentation?,
+        horizontalAlignment: HorizontalAlignment
+    ) -> some View {
+        ZStack(
+            alignment: Alignment(
+                horizontal: horizontalAlignment,
+                vertical: .bottom
+            )
+        ) {
+            Color.clear
+            if let counter {
+                RelayCompactCounterView(counter: counter)
+                    .transition(counterTransition)
+            }
+        }
+        .frame(width: RelayNotchSafeArea.compactCounterTargetWidth)
+        .padding(.bottom, 2)
     }
 
-    private var primaryCopy: String {
-        voiceActivity.isActive
-            ? voiceActivity.label
-            : activity.compactPrimaryCopy
+    private var counterAnimation: Animation {
+        if RelayAccessibilityContract.motionStyle(
+            reduceMotion: reduceMotion
+        ) == .crossfade {
+            return .linear(duration: 0.12)
+        }
+        return .easeOut(duration: 0.18)
     }
+
+    private var counterTransition: AnyTransition {
+        if RelayAccessibilityContract.motionStyle(
+            reduceMotion: reduceMotion
+        ) == .crossfade {
+            return .opacity
+        }
+        return .scale(scale: 0.74).combined(with: .opacity)
+    }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 }
