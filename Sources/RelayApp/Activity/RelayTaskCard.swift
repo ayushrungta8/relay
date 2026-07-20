@@ -69,7 +69,9 @@ struct RelayTaskCard: View {
                         )
 
                         Button(
-                            "Send follow-up",
+                            task.attentionReason == .inferredReplyRequest
+                                ? "Reply"
+                                : "Send follow-up",
                             systemImage: "paperplane",
                             action: beginFollowUp
                         )
@@ -82,9 +84,12 @@ struct RelayTaskCard: View {
                             )
                         }
 
-                        if task.hasUnreadCompletion {
+                        if task.hasUnreadCompletion
+                            || task.attentionReason == .inferredReplyRequest {
                             Button(
-                                "Mark read",
+                                task.attentionReason == .inferredReplyRequest
+                                    ? "Dismiss"
+                                    : "Mark read",
                                 systemImage: "checkmark",
                                 action: markRead
                             )
@@ -240,7 +245,9 @@ struct RelayTaskCard: View {
         }
         return switch task.attentionState {
         case .needsInput:
-            "Codex is waiting for your response."
+            task.attentionReason == .inferredReplyRequest
+                ? "Codex is waiting for your reply."
+                : "Codex is waiting for your response."
         case .failed:
             "Codex reported a task failure."
         case .ready:

@@ -177,6 +177,32 @@ struct CodexMonitoringClientTests {
     }
 
     @Test
+    func retainsCompleteFinalAnswerForAttentionClassification() throws {
+        let text = String(repeating: "x", count: 900)
+            + " Please review and reply approved."
+        let record = try JSONDecoder().decode(
+            CodexMonitoringThreadRecord.self,
+            from: Data(
+                """
+                {
+                  "id":"completed", "name":null, "preview":"Done",
+                  "cwd":"/tmp", "updatedAt":100,
+                  "status":{"type":"idle","activeFlags":[]},
+                  "turns":[{"id":"turn-final","status":"completed",
+                    "items":[{"type":"agentMessage",
+                      "phase":"final_answer","text":"\(text)"}]}]
+                }
+                """.utf8
+            )
+        )
+
+        #expect(record.latestFinalResponse?.turnID == "turn-final")
+        #expect(record.latestFinalResponse?.text == text)
+        #expect(record.latestFinalResponse?.fingerprint.isEmpty == false)
+        #expect(record.latestUpdate?.hasSuffix("…") == true)
+    }
+
+    @Test
     func decodesStatusTokenAndRateLimitNotifications() async throws {
         let rpc = MonitoringFixtureRPC()
         let source = MonitoringEventSource()

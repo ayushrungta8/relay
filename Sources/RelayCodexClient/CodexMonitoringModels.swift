@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import RelayCore
 
@@ -107,6 +108,27 @@ struct CodexMonitoringThreadRecord: Decodable {
     var latestTurnStatus: RelayTaskTurnStatus? { turns.last?.status }
     var latestTurnError: String? { turns.last?.error?.message }
 
+    var latestFinalResponse: RelayTaskFinalResponse? {
+        guard let turn = turns.last,
+              turn.status == .completed,
+              let turnID = turn.id,
+              let text = turn.items.last(where: {
+                  $0.type == "agentMessage"
+                      && $0.phase == "final_answer"
+                      && !($0.text ?? "").trimmingCharacters(
+                          in: .whitespacesAndNewlines
+                      ).isEmpty
+              })?.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        else { return nil }
+        let digest = SHA256.hash(data: Data(text.utf8))
+        let fingerprint = digest.map { String(format: "%02x", $0) }.joined()
+        return RelayTaskFinalResponse(
+            turnID: turnID,
+            text: text,
+            fingerprint: fingerprint
+        )
+    }
+
     var activity: RelayTaskActivity {
         activity(sessionSnapshot: nil)
     }
@@ -132,7 +154,8 @@ struct CodexMonitoringThreadRecord: Decodable {
             thread: effectiveThread,
             latestUpdate: latestUpdate,
             latestTurnStatus: isRunning ? .inProgress : latestTurnStatus,
-            latestTurnError: latestTurnError
+            latestTurnError: latestTurnError,
+            latestFinalResponse: isRunning ? nil : latestFinalResponse
         )
     }
 
@@ -165,6 +188,7 @@ struct CodexMonitoringStatusRecord: Decodable {
 }
 
 struct CodexMonitoringTurnRecord: Decodable {
+    let id: String?
     let status: RelayTaskTurnStatus?
     let items: [CodexMonitoringItemRecord]
     let error: CodexMonitoringErrorRecord?
@@ -172,6 +196,7 @@ struct CodexMonitoringTurnRecord: Decodable {
 
 struct CodexMonitoringItemRecord: Decodable {
     let type: String
+    let phase: String?
     let text: String?
     let command: String?
     let status: String?

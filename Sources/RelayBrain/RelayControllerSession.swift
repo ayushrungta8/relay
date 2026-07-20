@@ -64,6 +64,12 @@ public protocol RelayControllerSession: Sendable {
         _ call: RelayControllerToolCall,
         with result: RelayToolCallResult
     ) async throws
+
+    func cancelActiveTurn() async
+}
+
+public extension RelayControllerSession {
+    func cancelActiveTurn() async {}
 }
 
 public enum RelayControllerInstructions {

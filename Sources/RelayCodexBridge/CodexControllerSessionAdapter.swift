@@ -37,6 +37,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
     private let rpc: any CodexSessionRPC
     private let identity: RelayControllerIdentity
     private let cwd: String
+    private let threadName: String
 
     private var isStarted = false
     private var eventTask: Task<Void, Never>?
@@ -48,21 +49,25 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
     public init(
         rpc: any CodexSessionRPC,
         store: any RelayControllerThreadStoring,
-        cwd: String
+        cwd: String,
+        threadName: String = "Relay Controller"
     ) {
         self.rpc = rpc
         identity = RelayControllerIdentity(store: store)
         self.cwd = cwd
+        self.threadName = threadName
     }
 
     public init(
         rpc: any CodexSessionRPC,
         identity: RelayControllerIdentity,
-        cwd: String
+        cwd: String,
+        threadName: String = "Relay Controller"
     ) {
         self.rpc = rpc
         self.identity = identity
         self.cwd = cwd
+        self.threadName = threadName
     }
 
     deinit {
@@ -193,6 +198,21 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
         )
     }
 
+    public func cancelActiveTurn() async {
+        guard let turn = activeTurn else { return }
+        if let turnID = turn.turnID {
+            let _: JSONValue? = try? await rpc.requestJSON(
+                method: "turn/interrupt",
+                params: .object([
+                    "threadId": .string(turn.threadID),
+                    "turnId": .string(turnID),
+                ]),
+                timeout: .seconds(8)
+            )
+        }
+        failActiveTurn(CodexControllerSessionError.turnInterrupted)
+    }
+
     public func stop() async {
         eventTask?.cancel()
         eventTask = nil
@@ -251,7 +271,7 @@ public actor CodexControllerSessionAdapter: RelayControllerSession {
             method: "thread/name/set",
             params: .object([
                 "threadId": .string(id),
-                "name": .string("Relay Controller"),
+                "name": .string(threadName),
             ]),
             timeout: .seconds(8)
         )

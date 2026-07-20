@@ -23,6 +23,15 @@ public enum RelayTaskAttentionState: Sendable, Equatable, Hashable {
     }
 }
 
+public enum RelayTaskAttentionReason: Sendable, Equatable, Hashable {
+    case structuredInteraction
+    case inferredReplyRequest
+    case failure
+    case unreadCompletion
+    case running
+    case none
+}
+
 public enum RelayTaskTurnStatus: Codable, Sendable, Equatable {
     case completed
     case failed
@@ -60,6 +69,9 @@ public struct RelayTaskActivity: Sendable, Equatable, Identifiable {
     public let hasUnreadCompletion: Bool
     public let latestTurnStatus: RelayTaskTurnStatus?
     public let latestTurnError: String?
+    public let latestFinalResponse: RelayTaskFinalResponse?
+    public let hasInferredReplyRequest: Bool
+    public let attentionReason: RelayTaskAttentionReason
     public let attentionState: RelayTaskAttentionState
 
     public var id: String { thread.id }
@@ -69,38 +81,79 @@ public struct RelayTaskActivity: Sendable, Equatable, Identifiable {
         latestUpdate: String? = nil,
         hasUnreadCompletion: Bool = false,
         latestTurnStatus: RelayTaskTurnStatus? = nil,
-        latestTurnError: String? = nil
+        latestTurnError: String? = nil,
+        latestFinalResponse: RelayTaskFinalResponse? = nil,
+        hasInferredReplyRequest: Bool = false
     ) {
         self.thread = thread
         self.latestUpdate = latestUpdate
         self.hasUnreadCompletion = hasUnreadCompletion
         self.latestTurnStatus = latestTurnStatus
         self.latestTurnError = latestTurnError
-        attentionState = Self.attentionState(
+        self.latestFinalResponse = latestFinalResponse
+        self.hasInferredReplyRequest = hasInferredReplyRequest
+        attentionReason = Self.attentionReason(
             for: thread,
             hasUnreadCompletion: hasUnreadCompletion,
-            latestTurnStatus: latestTurnStatus
+            latestTurnStatus: latestTurnStatus,
+            hasInferredReplyRequest: hasInferredReplyRequest
+        )
+        attentionState = Self.attentionState(for: attentionReason)
+    }
+
+    public func settingInferredReplyRequest(
+        _ value: Bool
+    ) -> RelayTaskActivity {
+        RelayTaskActivity(
+            thread: thread,
+            latestUpdate: latestUpdate,
+            hasUnreadCompletion: hasUnreadCompletion,
+            latestTurnStatus: latestTurnStatus,
+            latestTurnError: latestTurnError,
+            latestFinalResponse: latestFinalResponse,
+            hasInferredReplyRequest: value
         )
     }
 
-    private static func attentionState(
+    private static func attentionReason(
         for thread: CodexThread,
         hasUnreadCompletion: Bool,
-        latestTurnStatus: RelayTaskTurnStatus?
-    ) -> RelayTaskAttentionState {
+        latestTurnStatus: RelayTaskTurnStatus?,
+        hasInferredReplyRequest: Bool
+    ) -> RelayTaskAttentionReason {
         if thread.activeFlags.contains(.waitingOnApproval)
             || thread.activeFlags.contains(.waitingOnUserInput) {
-            return .needsInput
+            return .structuredInteraction
+        }
+        if hasInferredReplyRequest {
+            return .inferredReplyRequest
         }
         if thread.status == .systemError || latestTurnStatus == .failed {
-            return .failed
+            return .failure
         }
         if hasUnreadCompletion {
-            return .ready
+            return .unreadCompletion
         }
         if thread.status == .active {
             return .running
         }
-        return .idle
+        return .none
+    }
+
+    private static func attentionState(
+        for reason: RelayTaskAttentionReason
+    ) -> RelayTaskAttentionState {
+        switch reason {
+        case .structuredInteraction, .inferredReplyRequest:
+            .needsInput
+        case .failure:
+            .failed
+        case .unreadCompletion:
+            .ready
+        case .running:
+            .running
+        case .none:
+            .idle
+        }
     }
 }

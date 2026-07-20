@@ -42,6 +42,9 @@ struct RelaySelectedTaskView: View {
         .onChange(of: task.id, initial: true) { _, _ in
             synchronizeFollowUp()
         }
+        .onChange(of: task.attentionReason) { _, _ in
+            synchronizeFollowUp()
+        }
         .onChange(of: allowsTaskManagement) { _, _ in
             synchronizeFollowUp()
         }
@@ -122,7 +125,9 @@ struct RelaySelectedTaskView: View {
 
     @ViewBuilder
     private var actionRegion: some View {
-        if task.attentionState == .needsInput {
+        if task.attentionReason == .inferredReplyRequest {
+            inferredReplyActions
+        } else if task.attentionState == .needsInput {
             if pendingInteractions.isEmpty {
                 pendingInteraction(
                     RelayPendingInteractionPresentation(
@@ -153,6 +158,15 @@ struct RelaySelectedTaskView: View {
         }
     }
 
+    private var inferredReplyActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Codex is waiting for your reply.")
+                .font(.callout)
+                .foregroundStyle(RelayPalette.secondaryText)
+            taskActions
+        }
+    }
+
     private var taskActions: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
@@ -163,7 +177,12 @@ struct RelaySelectedTaskView: View {
                 .tint(RelayPalette.accent)
                 .foregroundStyle(RelayPalette.primaryText)
 
-                Button("Follow up", systemImage: "paperplane") {
+                Button(
+                    task.attentionReason == .inferredReplyRequest
+                        ? "Reply"
+                        : "Follow up",
+                    systemImage: "paperplane"
+                ) {
                     drafts.beginFollowUp(threadID: task.id)
                 }
                 .buttonStyle(.bordered)
@@ -175,8 +194,14 @@ struct RelaySelectedTaskView: View {
                     .buttonStyle(.bordered)
                 }
 
-                if task.hasUnreadCompletion {
-                    Button("Mark read", systemImage: "checkmark") {
+                if task.hasUnreadCompletion
+                    || task.attentionReason == .inferredReplyRequest {
+                    Button(
+                        task.attentionReason == .inferredReplyRequest
+                            ? "Dismiss"
+                            : "Mark read",
+                        systemImage: "checkmark"
+                    ) {
                         Task { await actions.markRead(task) }
                     }
                     .buttonStyle(.bordered)
@@ -245,6 +270,7 @@ struct RelaySelectedTaskView: View {
     }
 
     private var allowsTaskManagement: Bool {
+        if task.attentionReason == .inferredReplyRequest { return true }
         guard task.attentionState == .needsInput else { return true }
         guard !ownedInteractionPresentations.isEmpty else { return false }
         return ownedInteractionPresentations.allSatisfy(\.allowsTaskManagement)
@@ -274,8 +300,11 @@ struct RelaySelectedTaskView: View {
     }
 
     private var statusTitle: String {
-        switch task.attentionState {
-        case .needsInput: "Needs your approval"
+        if task.attentionReason == .inferredReplyRequest {
+            return "Needs your reply"
+        }
+        return switch task.attentionState {
+        case .needsInput: "Needs your response"
         case .failed: "Task failed"
         case .ready: "Ready to review"
         case .running: "Running"
@@ -330,6 +359,9 @@ struct RelaySelectedTaskView: View {
             threadID: task.id,
             allowsTaskManagement: allowsTaskManagement
         )
+        if task.attentionReason == .inferredReplyRequest {
+            drafts.beginFollowUp(threadID: task.id)
+        }
     }
 
     private func sendFollowUp() {

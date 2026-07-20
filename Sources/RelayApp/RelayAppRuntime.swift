@@ -30,6 +30,24 @@ final class RelayAppRuntime {
         let controllerIdentity = RelayControllerIdentity(
             store: controllerThreadStore
         )
+        let classifierThreadStore = RelayControllerThreadFileStore(
+            fileURL: RelayControllerThreadFileStore
+                .attentionClassifierFileURL
+        )
+        let classifierIdentity = RelayControllerIdentity(
+            store: classifierThreadStore
+        )
+        let classifierSession = CodexControllerSessionAdapter(
+            rpc: rpc,
+            identity: classifierIdentity,
+            cwd: Self.controllerWorkingDirectory,
+            threadName: "Relay Attention Classifier"
+        )
+        let attentionInference = RelayAttentionInferenceCoordinator(
+            aiClassifier: CodexAttentionClassifier(
+                session: classifierSession
+            )
+        )
         let desktopFollowUpSender = CodexDesktopFollowUpSender()
         let taskClient = CodexTaskOperationsClient(
             rpc: rpc,
@@ -45,6 +63,8 @@ final class RelayAppRuntime {
             monitoring: monitoringClient,
             tasks: taskClient,
             controllerThreadStore: controllerThreadStore,
+            additionalInternalThreadStores: [classifierThreadStore],
+            attentionInference: attentionInference,
             connect: {
                 try await rpc.start()
             },

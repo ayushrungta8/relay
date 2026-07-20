@@ -57,4 +57,13 @@ public actor RelayControllerThreadFileStore:
             "controller-thread-id-v\(RelayControllerInstructions.revision)"
         )
     }
+
+    public static var attentionClassifierFileURL: URL {
+        FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+        .appendingPathComponent("Relay", isDirectory: true)
+        .appendingPathComponent("attention-classifier-thread-id-v1")
+    }
 }

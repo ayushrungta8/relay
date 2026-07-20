@@ -184,6 +184,136 @@ struct RelayActivityStoreTests {
 
     @MainActor
     @Test
+    func inferredReplyStaysDismissedAcrossRefresh() async {
+        let response = RelayTaskFinalResponse(
+            turnID: "turn-1",
+            text: "Please review the plan and reply approved.",
+            fingerprint: "fingerprint"
+        )
+        let task = RelayTaskActivity(
+            thread: CodexThread(
+                id: "worker",
+                preview: "Worker",
+                cwd: "/tmp",
+                updatedAt: 1,
+                status: .idle
+            ),
+            latestTurnStatus: .completed,
+            latestFinalResponse: response
+        )
+        let snapshot = RelayMonitoringSnapshot(tasks: [task], usage: nil)
+        let monitoring = MonitoringStub(
+            results: [.success(snapshot), .success(snapshot)]
+        )
+        let coordinator = RelayAttentionInferenceCoordinator(
+            aiClassifier: StoreAttentionClassifier(),
+            dismissalStore: .inMemory()
+        )
+        let store = RelayActivityStore(
+            monitoring: monitoring,
+            tasks: TaskOperationsStub(),
+            attentionInference: coordinator,
+            connect: {}
+        )
+
+        await store.refresh()
+        #expect(
+            store.attentionTasks.first?.attentionReason
+                == .inferredReplyRequest
+        )
+
+        await store.markRead(threadID: "worker")
+        await store.refresh()
+
+        #expect(store.attentionTasks.isEmpty)
+        #expect(store.recentTasks.map(\.id) == ["worker"])
+    }
+
+    @MainActor
+    @Test
+    func internalClassifierTaskIsNeverClassified() async {
+        let classifierTask = RelayTaskActivity(
+            thread: CodexThread(
+                id: "classifier",
+                name: "Relay Attention Classifier",
+                preview: "Internal",
+                cwd: "/tmp",
+                updatedAt: 1,
+                status: .idle
+            ),
+            latestTurnStatus: .completed,
+            latestFinalResponse: RelayTaskFinalResponse(
+                turnID: "classifier-turn",
+                text: "Should I proceed?",
+                fingerprint: "internal"
+            )
+        )
+        let ai = StoreAttentionClassifier()
+        let store = RelayActivityStore(
+            monitoring: MonitoringStub(results: [
+                .success(.init(tasks: [classifierTask], usage: nil)),
+            ]),
+            tasks: TaskOperationsStub(),
+            attentionInference: RelayAttentionInferenceCoordinator(
+                aiClassifier: ai,
+                dismissalStore: .inMemory()
+            ),
+            connect: {}
+        )
+
+        await store.refresh()
+        await Task.yield()
+
+        #expect(await ai.calls == 0)
+        #expect(store.attentionTasks.isEmpty)
+        #expect(store.recentTasks.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func ambiguousAIResultPromotesCurrentTurn() async {
+        let task = RelayTaskActivity(
+            thread: CodexThread(
+                id: "worker",
+                preview: "Worker",
+                cwd: "/tmp",
+                updatedAt: 1,
+                status: .idle
+            ),
+            latestTurnStatus: .completed,
+            latestFinalResponse: RelayTaskFinalResponse(
+                turnID: "turn-1",
+                text: "Would you like me to continue?",
+                fingerprint: "ambiguous"
+            )
+        )
+        let ai = StoreAttentionClassifier(needsReply: true)
+        let store = RelayActivityStore(
+            monitoring: MonitoringStub(results: [
+                .success(.init(tasks: [task], usage: nil)),
+            ]),
+            tasks: TaskOperationsStub(),
+            attentionInference: RelayAttentionInferenceCoordinator(
+                aiClassifier: ai,
+                dismissalStore: .inMemory()
+            ),
+            connect: {}
+        )
+
+        await store.refresh()
+        for _ in 0..<100 where store.attentionTasks.isEmpty {
+            await Task.yield()
+        }
+
+        #expect(
+            store.attentionTasks.first?.attentionReason
+                == .inferredReplyRequest
+        )
+        #expect(await ai.calls == 1)
+    }
+
+    @MainActor
+    @Test
     func transientSnapshotFailureSchedulesBoundedRecovery() async {
         let monitoring = MonitoringStub(
             results: [
@@ -619,6 +749,25 @@ private actor TaskOperationsStub: CodexTaskOperating {
 
     func interruptedIDs() -> [String] {
         interrupted
+    }
+}
+
+private actor StoreAttentionClassifier: RelayAttentionAIClassifying {
+    private let needsReply: Bool
+    private(set) var calls = 0
+
+    init(needsReply: Bool = false) {
+        self.needsReply = needsReply
+    }
+
+    func classify(
+        _ text: String
+    ) async throws -> RelayAIAttentionClassification {
+        calls += 1
+        return RelayAIAttentionClassification(
+            needsReply: needsReply,
+            reason: "unused for local positive"
+        )
     }
 }
 

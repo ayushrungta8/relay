@@ -84,7 +84,9 @@ struct RelayTaskRow: View {
     private var metadataCopy: String {
         switch task.attentionState {
         case .needsInput:
-            "Needs your approval"
+            task.attentionReason == .inferredReplyRequest
+                ? "Needs your reply"
+                : "Needs your response"
         case .failed:
             "Failed · \(updatedDate.formatted(.relative(presentation: .numeric)))"
         case .ready:

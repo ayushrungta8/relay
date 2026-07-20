@@ -214,12 +214,16 @@ final class RelayAppModel {
             let provider = providerFactory()
             loadedThreads = try await provider.loadThreads(limit: 25)
                 .filter {
-                    $0.name?
+                    guard let name = $0.name?
                         .trimmingCharacters(
                             in: .whitespacesAndNewlines
                         )
-                        .caseInsensitiveCompare("Relay Controller")
+                    else { return true }
+                    return name.caseInsensitiveCompare("Relay Controller")
                         != .orderedSame
+                        && name.caseInsensitiveCompare(
+                            "Relay Attention Classifier"
+                        ) != .orderedSame
                 }
                 .sorted(by: Self.threadComesBefore)
             state = .loaded

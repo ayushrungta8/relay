@@ -171,6 +171,69 @@ struct RelayActivityReducerTests {
     }
 
     @Test
+    func hidesAttentionClassifierByName() {
+        var reducer = RelayActivityReducer()
+        reducer.merge(
+            snapshot: RelayMonitoringSnapshot(
+                tasks: [
+                    RelayTaskActivity(
+                        thread: CodexThread(
+                            id: "classifier",
+                            name: "Relay Attention Classifier",
+                            preview: "Internal",
+                            cwd: "/tmp",
+                            updatedAt: 2,
+                            status: .active
+                        )
+                    ),
+                    activity(id: "worker", updatedAt: 1, status: .active),
+                ],
+                usage: nil
+            )
+        )
+
+        #expect(reducer.runningTasks.map(\.id) == ["worker"])
+    }
+
+    @Test
+    func ignoresStaleInferredAttentionUpdate() {
+        var reducer = RelayActivityReducer()
+        let response = RelayTaskFinalResponse(
+            turnID: "current-turn",
+            text: "Should I proceed?",
+            fingerprint: "abc"
+        )
+        reducer.merge(snapshot: .init(
+            tasks: [RelayTaskActivity(
+                thread: CodexThread(
+                    id: "worker",
+                    preview: "Worker",
+                    cwd: "/tmp",
+                    updatedAt: 1,
+                    status: .idle
+                ),
+                latestTurnStatus: .completed,
+                latestFinalResponse: response
+            )],
+            usage: nil
+        ))
+
+        reducer.applyInferredAttention(
+            threadID: "worker",
+            turnID: "stale-turn",
+            needsReply: true
+        )
+        #expect(reducer.recentTasks.first?.attentionState == .idle)
+
+        reducer.applyInferredAttention(
+            threadID: "worker",
+            turnID: "current-turn",
+            needsReply: true
+        )
+        #expect(reducer.attentionTasks.first?.attentionState == .needsInput)
+    }
+
+    @Test
     func initiallyFailedTaskIsNotMarkedUnreadWithoutATransition() {
         var reducer = RelayActivityReducer()
 

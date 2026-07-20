@@ -47,6 +47,25 @@ struct CodexControllerSessionAdapterTests {
     }
 
     @Test
+    func usesConfiguredInternalThreadName() async throws {
+        let rpc = ControllerRPCStub()
+        let store = ControllerThreadStoreStub()
+        let session = CodexControllerSessionAdapter(
+            rpc: rpc,
+            store: store,
+            cwd: "/Users/test/Work",
+            threadName: "Relay Attention Classifier"
+        )
+
+        _ = try await session.ensureControllerThread(configuration: .default)
+
+        let params = try #require(
+            await rpc.params(for: "thread/name/set")?.objectValue
+        )
+        #expect(params["name"] == .string("Relay Attention Classifier"))
+    }
+
+    @Test
     func routesDynamicToolCallsAndPublishesTheCompletedAnswer() async throws {
         let rpc = ControllerRPCStub()
         let store = ControllerThreadStoreStub()

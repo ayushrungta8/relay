@@ -31,13 +31,16 @@ nonisolated struct RelayActivityReducer: Sendable {
 
     mutating func merge(
         snapshot: RelayMonitoringSnapshot,
-        controllerThreadID: String? = nil
+        controllerThreadID: String? = nil,
+        additionalInternalThreadIDs: Set<String> = []
     ) {
         var merged: [String: RelayTaskActivity] = [:]
         for task in snapshot.tasks
         where !Self.isController(
             task,
-            controllerThreadID: controllerThreadID
+            internalThreadIDs: additionalInternalThreadIDs.union(
+                controllerThreadID.map { [$0] } ?? []
+            )
         ) {
             let previous = tasksByID[task.id]
             merged[task.id] = Self.merging(
@@ -69,7 +72,10 @@ nonisolated struct RelayActivityReducer: Sendable {
                 ),
                 latestUpdate: previous.latestUpdate,
                 latestTurnStatus: previous.latestTurnStatus,
-                latestTurnError: previous.latestTurnError
+                latestTurnError: previous.latestTurnError,
+                latestFinalResponse: previous.latestFinalResponse,
+                hasInferredReplyRequest:
+                    previous.hasInferredReplyRequest
             )
             tasksByID[threadID] = Self.merging(
                 updated,
@@ -92,8 +98,20 @@ nonisolated struct RelayActivityReducer: Sendable {
             latestUpdate: task.latestUpdate,
             hasUnreadCompletion: false,
             latestTurnStatus: task.latestTurnStatus,
-            latestTurnError: task.latestTurnError
+            latestTurnError: task.latestTurnError,
+            latestFinalResponse: task.latestFinalResponse,
+            hasInferredReplyRequest: false
         )
+    }
+
+    mutating func applyInferredAttention(
+        threadID: String,
+        turnID: String,
+        needsReply: Bool
+    ) {
+        guard let task = tasksByID[threadID],
+              task.latestFinalResponse?.turnID == turnID else { return }
+        tasksByID[threadID] = task.settingInferredReplyRequest(needsReply)
     }
 
     mutating func select(threadID: String) {
@@ -136,20 +154,26 @@ nonisolated struct RelayActivityReducer: Sendable {
                 || becameCompleted
                 || becameFailed,
             latestTurnStatus: task.latestTurnStatus,
-            latestTurnError: task.latestTurnError
+            latestTurnError: task.latestTurnError,
+            latestFinalResponse: task.latestFinalResponse,
+            hasInferredReplyRequest: task.hasInferredReplyRequest
         )
     }
 
     private static func isController(
         _ task: RelayTaskActivity,
-        controllerThreadID: String?
+        internalThreadIDs: Set<String>
     ) -> Bool {
-        if task.id == controllerThreadID {
+        if internalThreadIDs.contains(task.id) {
             return true
         }
-        return task.thread.name?
+        guard let name = task.thread.name?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .caseInsensitiveCompare("Relay Controller") == .orderedSame
+        else { return false }
+        return name.caseInsensitiveCompare("Relay Controller") == .orderedSame
+            || name.caseInsensitiveCompare(
+                "Relay Attention Classifier"
+            ) == .orderedSame
     }
 }
 
@@ -163,11 +187,13 @@ actor RelayActivityState {
     func merge(
         snapshot: RelayMonitoringSnapshot,
         controllerThreadID: String?,
+        additionalInternalThreadIDs: Set<String> = [],
         replayingEventsAfter version: Int
     ) -> RelayActivityValues {
         reducer.merge(
             snapshot: snapshot,
-            controllerThreadID: controllerThreadID
+            controllerThreadID: controllerThreadID,
+            additionalInternalThreadIDs: additionalInternalThreadIDs
         )
         for entry in events where entry.version > version {
             reducer.merge(event: entry.event)
@@ -194,6 +220,19 @@ actor RelayActivityState {
 
     func markRead(threadID: String) -> RelayActivityValues {
         reducer.markRead(threadID: threadID)
+        return RelayActivityValues(reducer: reducer)
+    }
+
+    func applyInferredAttention(
+        threadID: String,
+        turnID: String,
+        needsReply: Bool
+    ) -> RelayActivityValues {
+        reducer.applyInferredAttention(
+            threadID: threadID,
+            turnID: turnID,
+            needsReply: needsReply
+        )
         return RelayActivityValues(reducer: reducer)
     }
 

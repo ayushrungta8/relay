@@ -25,6 +25,9 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private let tasks: any CodexTaskOperating
     private let controllerThreadStore:
         (any RelayControllerThreadStoring)?
+    private let additionalInternalThreadStores:
+        [any RelayControllerThreadStoring]
+    private let attentionInference: RelayAttentionInferenceCoordinator?
     private let connect: Connect
     private let sleep: Sleep
     private let state = RelayActivityState()
@@ -40,6 +43,8 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private var autoApplyAttemptedCreditIDs: Set<String> = []
     private var periodicRefreshTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    private var classificationTasks:
+        [RelayAttentionCandidate: Task<Void, Never>] = [:]
     private var isStarted = false
     private var isRefreshing = false
     private var refreshRequested = false
@@ -77,6 +82,9 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         tasks: any CodexTaskOperating,
         controllerThreadStore:
             (any RelayControllerThreadStoring)? = nil,
+        additionalInternalThreadStores:
+            [any RelayControllerThreadStoring] = [],
+        attentionInference: RelayAttentionInferenceCoordinator? = nil,
         connect: @escaping Connect,
         sleep: @escaping Sleep = { duration in
             try await Task.sleep(for: duration)
@@ -87,6 +95,8 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         self.monitoring = monitoring
         self.tasks = tasks
         self.controllerThreadStore = controllerThreadStore
+        self.additionalInternalThreadStores = additionalInternalThreadStores
+        self.attentionInference = attentionInference
         self.connect = connect
         self.sleep = sleep
         self.defaults = defaults
@@ -125,16 +135,53 @@ final class RelayActivityStore: RelaySupervisionStateReading {
     private func performRefresh() async {
         let eventVersion = await state.beginSnapshot()
         do {
-            let snapshot = try await monitoring.snapshot(limit: 25)
             let controllerThreadID =
                 await controllerThreadStore?.loadThreadID()
+            var additionalInternalThreadIDs: Set<String> = []
+            for store in additionalInternalThreadStores {
+                if let id = await store.loadThreadID() {
+                    additionalInternalThreadIDs.insert(id)
+                }
+            }
+            let internalThreadIDs = additionalInternalThreadIDs.union(
+                controllerThreadID.map { [$0] } ?? []
+            )
+            var snapshot = try await monitoring.snapshot(
+                limit: 25 + internalThreadIDs.count
+            )
+            var candidates: [RelayAttentionCandidate] = []
+            if let attentionInference {
+                let preparation = await attentionInference.prepare(
+                    tasks: snapshot.tasks.filter {
+                        !Self.isInternalTask(
+                            $0,
+                            internalThreadIDs: internalThreadIDs
+                        )
+                    }
+                )
+                let preparedByID = Dictionary(
+                    uniqueKeysWithValues: preparation.tasks.map {
+                        ($0.id, $0)
+                    }
+                )
+                snapshot = RelayMonitoringSnapshot(
+                    tasks: snapshot.tasks.map {
+                        preparedByID[$0.id] ?? $0
+                    },
+                    usage: snapshot.usage,
+                    tokenUsageByThreadID: snapshot.tokenUsageByThreadID
+                )
+                candidates = preparation.candidates
+            }
             let values = await state.merge(
                 snapshot: snapshot,
                 controllerThreadID: controllerThreadID,
+                additionalInternalThreadIDs: additionalInternalThreadIDs,
                 replayingEventsAfter: eventVersion
             )
             lastUpdatedAt = .now
             publish(values)
+            scheduleClassifications(candidates)
             cancelReconnect()
             reconnectAttempt = 0
             connectionState = .connected(lastUpdatedAt: lastUpdatedAt ?? .now)
@@ -150,6 +197,9 @@ final class RelayActivityStore: RelaySupervisionStateReading {
 
     func markRead(threadID: String) async {
         selectedThreadID = threadID
+        if let task = task(threadID: threadID), let attentionInference {
+            await attentionInference.dismiss(task: task)
+        }
         publish(await state.markRead(threadID: threadID))
     }
 
@@ -168,8 +218,7 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         guard !prompt.isEmpty else {
             throw CodexTaskOperationsError.emptyPrompt
         }
-        selectedThreadID = threadID
-        publish(await state.markRead(threadID: threadID))
+        await markRead(threadID: threadID)
         _ = try await tasks.sendToTask(id: threadID, prompt: prompt)
         await refresh()
     }
@@ -337,6 +386,45 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         scheduleAutoApply()
     }
 
+    private func scheduleClassifications(
+        _ candidates: [RelayAttentionCandidate]
+    ) {
+        guard let attentionInference else { return }
+        for candidate in candidates where classificationTasks[candidate] == nil {
+            classificationTasks[candidate] = Task { [weak self] in
+                let update = await attentionInference.classify(candidate)
+                guard let self, !Task.isCancelled else { return }
+                self.classificationTasks[candidate] = nil
+                let values = await self.state.applyInferredAttention(
+                    threadID: update.threadID,
+                    turnID: update.turnID,
+                    needsReply: update.needsReply
+                )
+                self.publish(values)
+            }
+        }
+    }
+
+    private func task(threadID: String) -> RelayTaskActivity? {
+        (attentionTasks + runningTasks + recentTasks).first {
+            $0.id == threadID
+        }
+    }
+
+    private static func isInternalTask(
+        _ task: RelayTaskActivity,
+        internalThreadIDs: Set<String>
+    ) -> Bool {
+        if internalThreadIDs.contains(task.id) { return true }
+        guard let name = task.thread.name?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ) else { return false }
+        return name.caseInsensitiveCompare("Relay Controller") == .orderedSame
+            || name.caseInsensitiveCompare(
+                "Relay Attention Classifier"
+            ) == .orderedSame
+    }
+
     private func scheduleAutoApply() {
         autoApplyTask?.cancel()
         autoApplyTask = nil
@@ -431,5 +519,6 @@ final class RelayActivityStore: RelaySupervisionStateReading {
         periodicRefreshTask?.cancel()
         reconnectTask?.cancel()
         autoApplyTask?.cancel()
+        classificationTasks.values.forEach { $0.cancel() }
     }
 }
