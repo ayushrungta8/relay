@@ -154,6 +154,8 @@ final class RelayNotchPanelController {
              .automaticallyChecksForUpdates,
              .updateCadence,
              .autoApplyResetCredits,
+             .controllerModel,
+             .controllerReasoningEffort,
              .restoredDefaults:
             break
         }

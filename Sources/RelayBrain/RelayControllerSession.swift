@@ -9,8 +9,8 @@ public struct RelayControllerConfiguration: Sendable, Equatable {
     public init(
         developerInstructions: String,
         dynamicTools: [RelayDynamicToolDefinition],
-        model: String = "gpt-5.6-terra",
-        reasoningEffort: String = "low"
+        model: String = "gpt-5.6-luna",
+        reasoningEffort: String = "medium"
     ) {
         self.developerInstructions = developerInstructions
         self.dynamicTools = dynamicTools

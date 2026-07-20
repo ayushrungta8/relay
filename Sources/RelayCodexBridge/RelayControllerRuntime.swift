@@ -21,19 +21,22 @@ public extension RelayCommandHandling {
 }
 
 public actor RelayControllerRuntime: RelayCommandHandling {
+    public typealias ConfigurationProvider = @Sendable () async
+        -> RelayControllerConfiguration
+
     private let session: any RelayControllerSession
     private let router: RelayToolCallRouter
-    private let configuration: RelayControllerConfiguration
-    private var controller: RelayControllerThread?
+    private let configurationProvider: ConfigurationProvider
 
     public init(
         session: any RelayControllerSession,
         router: RelayToolCallRouter,
-        configuration: RelayControllerConfiguration = .default
+        configuration: RelayControllerConfiguration = .default,
+        configurationProvider: ConfigurationProvider? = nil
     ) {
         self.session = session
         self.router = router
-        self.configuration = configuration
+        self.configurationProvider = configurationProvider ?? { configuration }
     }
 
     public func submit(_ text: String) async throws -> String {
@@ -58,14 +61,8 @@ public actor RelayControllerRuntime: RelayCommandHandling {
     }
 
     private func controllerThread() async throws -> RelayControllerThread {
-        if let controller {
-            return controller
-        }
-
-        let controller = try await session.ensureControllerThread(
-            configuration: configuration
+        try await session.ensureControllerThread(
+            configuration: await configurationProvider()
         )
-        self.controller = controller
-        return controller
     }
 }

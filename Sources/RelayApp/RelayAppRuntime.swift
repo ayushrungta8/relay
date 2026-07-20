@@ -95,7 +95,22 @@ final class RelayAppRuntime {
         )
         let controllerRuntime = RelayControllerRuntime(
             session: controllerSession,
-            router: router
+            router: router,
+            configurationProvider: { [weak settings] in
+                await MainActor.run {
+                    guard let settings else {
+                        return RelayControllerConfiguration.default
+                    }
+                    return RelayControllerConfiguration(
+                        developerInstructions:
+                            RelayControllerInstructions.developer,
+                        dynamicTools: RelayDynamicTools.definitions,
+                        model: settings.controllerModel.rawValue,
+                        reasoningEffort:
+                            settings.controllerReasoningEffort.rawValue
+                    )
+                }
+            }
         )
         let voiceSynthesizer = AppleSpeechSynthesizer(
             voiceIdentifier: settings.speechVoiceIdentifier,
@@ -149,6 +164,8 @@ final class RelayAppRuntime {
             )
         case let .autoApplyResetCredits(enabled):
             activityStore.autoApplyResetCredits = enabled
+        case .controllerModel, .controllerReasoningEffort:
+            break
         case .showAtLaunch,
              .automaticPeeks,
              .followsPointerAcrossDisplays,

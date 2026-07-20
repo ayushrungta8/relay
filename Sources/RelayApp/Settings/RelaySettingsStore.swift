@@ -33,6 +33,8 @@ enum RelaySettingsChange: Equatable {
     case automaticallyChecksForUpdates(Bool)
     case updateCadence(RelayUpdateCadence)
     case autoApplyResetCredits(Bool)
+    case controllerModel(RelayControllerModel)
+    case controllerReasoningEffort(RelayControllerReasoningEffort)
     case restoredDefaults
 }
 
@@ -54,6 +56,9 @@ final class RelaySettingsStore {
         static let updateCadence = "relay.settings.updateCadence"
         static let autoApplyResetCredits =
             "relay.autoApplyResetCreditBeforeExpiry"
+        static let controllerModel = "relay.settings.controllerModel"
+        static let controllerReasoningEffort =
+            "relay.settings.controllerReasoningEffort"
     }
 
     private static let registeredDefaults: [String: Any] = [
@@ -64,6 +69,9 @@ final class RelaySettingsStore {
         Key.automaticallyChecksForUpdates: true,
         Key.updateCadence: RelayUpdateCadence.daily.rawValue,
         Key.autoApplyResetCredits: false,
+        Key.controllerModel: RelayControllerModel.luna.rawValue,
+        Key.controllerReasoningEffort:
+            RelayControllerReasoningEffort.medium.rawValue,
     ]
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -168,6 +176,35 @@ final class RelaySettingsStore {
         }
     }
 
+    var controllerModel: RelayControllerModel {
+        didSet {
+            defaults.set(controllerModel.rawValue, forKey: Key.controllerModel)
+            notify(
+                .controllerModel(controllerModel),
+                oldValue != controllerModel
+            )
+            if !controllerModel.supportedReasoningEfforts.contains(
+                controllerReasoningEffort
+            ) {
+                controllerReasoningEffort =
+                    controllerModel.defaultReasoningEffort
+            }
+        }
+    }
+
+    var controllerReasoningEffort: RelayControllerReasoningEffort {
+        didSet {
+            defaults.set(
+                controllerReasoningEffort.rawValue,
+                forKey: Key.controllerReasoningEffort
+            )
+            notify(
+                .controllerReasoningEffort(controllerReasoningEffort),
+                oldValue != controllerReasoningEffort
+            )
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         defaults.register(defaults: Self.registeredDefaults)
@@ -192,6 +229,19 @@ final class RelaySettingsStore {
         autoApplyResetCredits = defaults.bool(
             forKey: Key.autoApplyResetCredits
         )
+        let selectedModel = RelayControllerModel(
+            rawValue: defaults.string(forKey: Key.controllerModel) ?? ""
+        ) ?? .luna
+        controllerModel = selectedModel
+        let storedEffort = RelayControllerReasoningEffort(
+            rawValue: defaults.string(
+                forKey: Key.controllerReasoningEffort
+            ) ?? ""
+        ) ?? .medium
+        controllerReasoningEffort = selectedModel.supportedReasoningEfforts
+            .contains(storedEffort)
+            ? storedEffort
+            : selectedModel.defaultReasoningEffort
     }
 
     func restoreDefaults() {
@@ -204,6 +254,8 @@ final class RelaySettingsStore {
         automaticallyChecksForUpdates = true
         updateCadence = .daily
         autoApplyResetCredits = false
+        controllerModel = .luna
+        controllerReasoningEffort = .medium
         onChange?(.restoredDefaults)
     }
 

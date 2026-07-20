@@ -35,7 +35,7 @@ struct CodexControllerSessionAdapterTests {
         )
         #expect(startParams["ephemeral"] == .bool(false))
         #expect(startParams["cwd"] == .string("/Users/test/Work"))
-        #expect(startParams["model"] == .string("gpt-5.6-terra"))
+        #expect(startParams["model"] == .string("gpt-5.6-luna"))
         #expect(
             startParams["developerInstructions"]?.stringValue
                 == RelayControllerInstructions.developer
@@ -85,8 +85,8 @@ struct CodexControllerSessionAdapterTests {
         let turnParams = try #require(
             await rpc.params(for: "turn/start")?.objectValue
         )
-        #expect(turnParams["model"] == .string("gpt-5.6-terra"))
-        #expect(turnParams["effort"] == .string("low"))
+        #expect(turnParams["model"] == .string("gpt-5.6-luna"))
+        #expect(turnParams["effort"] == .string("medium"))
 
         await rpc.emit(
             .serverRequest(
@@ -268,7 +268,7 @@ struct CodexControllerSessionAdapterTests {
         #expect(resumeParams["sandbox"] == .string("read-only"))
         #expect(resumeParams["excludeTurns"] == .bool(true))
         #expect(resumeParams["cwd"] == .string("/Users/test/Work"))
-        #expect(resumeParams["model"] == .string("gpt-5.6-terra"))
+        #expect(resumeParams["model"] == .string("gpt-5.6-luna"))
         #expect(
             resumeParams["developerInstructions"]?.stringValue
                 == RelayControllerInstructions.developer

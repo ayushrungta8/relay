@@ -41,6 +41,77 @@ struct RelayControllerRuntimeTests {
         #expect(answer == "Two tasks are active.")
         #expect(await recorder.values() == ["Two tasks", "Two tasks are active."])
     }
+
+    @Test
+    func refreshesConfigurationBeforeEachControllerTurn() async throws {
+        let source = ControllerConfigurationSource()
+        let session = ConfigurationRecordingSessionStub()
+        let runtime = RelayControllerRuntime(
+            session: session,
+            router: RelayToolCallRouter(operations: TaskOperationsStub()),
+            configurationProvider: { await source.configuration() }
+        )
+
+        _ = try await runtime.submit("First")
+        await source.select(model: "gpt-5.6-sol", effort: "high")
+        _ = try await runtime.submit("Second")
+
+        let configurations = await session.configurations()
+        #expect(configurations.map(\.model) == [
+            "gpt-5.6-luna",
+            "gpt-5.6-sol",
+        ])
+        #expect(configurations.map(\.reasoningEffort) == ["medium", "high"])
+    }
+}
+
+private actor ControllerConfigurationSource {
+    private var model = "gpt-5.6-luna"
+    private var effort = "medium"
+
+    func configuration() -> RelayControllerConfiguration {
+        RelayControllerConfiguration(
+            developerInstructions: "Controller",
+            dynamicTools: [],
+            model: model,
+            reasoningEffort: effort
+        )
+    }
+
+    func select(model: String, effort: String) {
+        self.model = model
+        self.effort = effort
+    }
+}
+
+private actor ConfigurationRecordingSessionStub: RelayControllerSession {
+    private var recordedConfigurations: [RelayControllerConfiguration] = []
+
+    func ensureControllerThread(
+        configuration: RelayControllerConfiguration
+    ) async throws -> RelayControllerThread {
+        recordedConfigurations.append(configuration)
+        return RelayControllerThread(id: "controller")
+    }
+
+    func submitUserText(
+        _ text: String,
+        to controller: RelayControllerThread
+    ) async throws -> AsyncThrowingStream<RelayControllerEvent, any Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield(.finalText("Done"))
+            continuation.finish()
+        }
+    }
+
+    func completeToolCall(
+        _ call: RelayControllerToolCall,
+        with result: RelayToolCallResult
+    ) async throws {}
+
+    func configurations() -> [RelayControllerConfiguration] {
+        recordedConfigurations
+    }
 }
 
 private actor StreamingControllerSessionStub: RelayControllerSession {

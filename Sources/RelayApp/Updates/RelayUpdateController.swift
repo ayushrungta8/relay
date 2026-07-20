@@ -76,7 +76,9 @@ final class RelayUpdateController {
              .speaksVoiceResponses,
              .speechVoiceIdentifier,
              .shortcut,
-             .autoApplyResetCredits:
+             .autoApplyResetCredits,
+             .controllerModel,
+             .controllerReasoningEffort:
             break
         }
     }
