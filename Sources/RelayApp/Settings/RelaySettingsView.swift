@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct RelaySettingsView: View {
@@ -122,6 +123,20 @@ struct RelaySettingsView: View {
                         detail: "Uses a credit one hour before it expires.",
                         isOn: $settings.autoApplyResetCredits
                     )
+                }
+
+                settingsGroup("Application") {
+                    settingRow(
+                        "Quit Relay",
+                        detail: "Stops Relay and closes its notch surface."
+                    ) {
+                        Button("Quit Relay") {
+                            NSApplication.shared.terminate(nil)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(RelayPalette.critical)
+                    }
                 }
 
                 HStack {
