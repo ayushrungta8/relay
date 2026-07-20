@@ -77,7 +77,7 @@ struct RelayCompactSummaryLabel: View {
         ZStack(
             alignment: Alignment(
                 horizontal: horizontalAlignment,
-                vertical: .bottom
+                vertical: .center
             )
         ) {
             Color.clear
@@ -87,7 +87,6 @@ struct RelayCompactSummaryLabel: View {
             }
         }
         .frame(width: RelayNotchSafeArea.compactCounterTargetWidth)
-        .padding(.bottom, 2)
     }
 
     private var counterAnimation: Animation {

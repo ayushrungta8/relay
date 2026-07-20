@@ -218,6 +218,16 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func compactCountersUseTheVerticalCenterOfTheNotchBand() throws {
+        let label = try relayProjectSource(
+            "Sources/RelayApp/Activity/RelayCompactSummaryLabel.swift"
+        )
+
+        #expect(label.contains("vertical: .center"))
+        #expect(!label.contains(".padding(.bottom, 2)"))
+    }
+
+    @Test
     func hostingViewDoesNotPublishWindowSizingConstraints() {
         let host = NSHostingView(rootView: Color.clear)
 
