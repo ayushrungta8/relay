@@ -14,8 +14,6 @@ final class RelayNotchPanelState {
         ((RelayPanelPresentation) -> Void)?
     @ObservationIgnored
     var priorityActivityHandler: ((RelayAutomaticPeekTrigger?) -> Void)?
-    @ObservationIgnored
-    var pointerHoverHandler: ((Bool) -> Void)?
 
     func requestPresentation(
         _ presentation: RelayPanelPresentation
@@ -40,9 +38,5 @@ final class RelayNotchPanelState {
 
     func priorityActivityChanged(_ trigger: RelayAutomaticPeekTrigger?) {
         priorityActivityHandler?(trigger)
-    }
-
-    func pointerHoverChanged(_ isInside: Bool) {
-        pointerHoverHandler?(isInside)
     }
 }

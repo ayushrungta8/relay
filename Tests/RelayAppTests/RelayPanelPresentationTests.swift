@@ -43,6 +43,48 @@ struct RelayPanelPresentationTests {
     }
 
     @Test
+    func panelResizeDoesNotOwnItsOwnHoverTracking() throws {
+        let root = try relayProjectSource(
+            "Sources/RelayApp/Activity/RelayNotchRootView.swift"
+        )
+        let controller = try relayProjectSource(
+            "Sources/RelayApp/Notch/RelayNotchPanelController.swift"
+        )
+
+        #expect(!root.contains(".onHover"))
+        #expect(controller.contains("synchronizePointerHover"))
+        #expect(controller.contains("hoverState.update"))
+    }
+
+    @Test
+    func pointerHoverStateEmitsOnlyRealBoundaryCrossings() {
+        var state = RelayPointerHoverState()
+
+        #expect(state.update(isInside: false) == nil)
+        #expect(state.update(isInside: true) == true)
+        #expect(state.update(isInside: true) == nil)
+        #expect(state.update(isInside: false) == false)
+        #expect(state.update(isInside: false) == nil)
+    }
+
+    @Test
+    func pointerAtPhysicalScreenTopRemainsInsideCompactPanel() {
+        let compactFrame = CGRect(
+            x: 629,
+            y: 950,
+            width: 254,
+            height: 32
+        )
+
+        #expect(
+            RelayPointerHoverState.contains(
+                CGPoint(x: 871, y: 982),
+                in: compactFrame
+            )
+        )
+    }
+
+    @Test
     func escalationMovesThroughEveryPresentationLevel() {
         #expect(RelayPanelPresentation.hidden.escalated == .peek)
         #expect(RelayPanelPresentation.peek.escalated == .compact)

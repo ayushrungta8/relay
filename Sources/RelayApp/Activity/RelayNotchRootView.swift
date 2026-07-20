@@ -30,7 +30,6 @@ struct RelayNotchRootView: View {
     let submitPendingDecision:
         (String, RelayPendingApprovalDecision) async throws -> Void
     let requestPresentation: (RelayPanelPresentation) -> Void
-    let pointerHoverChanged: (Bool) -> Void
     let priorityActivityChanged: (RelayAutomaticPeekTrigger?) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -139,7 +138,6 @@ struct RelayNotchRootView: View {
         .contentShape(notchShape)
         .tint(RelayPalette.accent)
         .animation(contentAnimation, value: voiceSetup)
-        .onHover(perform: pointerHoverChanged)
         .onChange(of: automaticPeekTrigger, initial: true) {
             _, trigger in priorityActivityChanged(trigger)
         }

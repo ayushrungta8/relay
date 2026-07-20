@@ -15,6 +15,7 @@ final class RelayNotchPanelController {
     private var screenParametersObserver: NSObjectProtocol?
     private var currentScreenIdentity: RelayScreenIdentity?
     private var relocationGeneration = 0
+    private var hoverState = RelayPointerHoverState()
     private var hoverCollapseTask: Task<Void, Never>?
     private let isVoiceSetupPresented: () -> Bool
     private let dismissVoiceSetup: () -> Void
@@ -68,12 +69,9 @@ final class RelayNotchPanelController {
         presentationState.priorityActivityHandler = { [weak self] trigger in
             self?.presentationCoordinator.observe(trigger)
         }
-        presentationState.pointerHoverHandler = { [weak self] isInside in
-            self?.pointerHoverChanged(isInside)
-        }
         configurePanel(panel)
         panel.contentView = hostingView
-        installPointerDisplayMonitoring()
+        installPointerMonitoring()
     }
 
     func present(
@@ -86,6 +84,10 @@ final class RelayNotchPanelController {
         }
         guard let targetScreen = screen ?? screenContainingActiveWindow() else {
             return
+        }
+
+        if presentation != .expanded {
+            hoverState.reset()
         }
 
         relocationGeneration &+= 1
@@ -163,6 +165,7 @@ final class RelayNotchPanelController {
         panel.updatePresentation(.hidden)
         panel.orderOut(nil)
         currentScreenIdentity = nil
+        hoverState.reset()
         displayFollower.cancel()
         removeOutsideClickMonitoring()
     }
@@ -175,6 +178,7 @@ final class RelayNotchPanelController {
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
         panel.animationBehavior = .none
+        panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [
             .canJoinAllSpaces,
             .fullScreenAuxiliary,
@@ -287,17 +291,19 @@ final class RelayNotchPanelController {
         }
     }
 
-    private func installPointerDisplayMonitoring() {
+    private func installPointerMonitoring() {
         globalMouseMoveMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: .mouseMoved
         ) { [weak self] _ in
             Task { @MainActor in
+                self?.synchronizePointerHover(at: NSEvent.mouseLocation)
                 self?.synchronizePointerDisplayFollowing()
             }
         }
         localMouseMoveMonitor = NSEvent.addLocalMonitorForEvents(
             matching: .mouseMoved
         ) { [weak self] event in
+            self?.synchronizePointerHover(at: NSEvent.mouseLocation)
             self?.synchronizePointerDisplayFollowing()
             return event
         }
@@ -325,6 +331,15 @@ final class RelayNotchPanelController {
             currentDisplay: currentScreenIdentity,
             presentation: presentation
         )
+    }
+
+    private func synchronizePointerHover(at location: CGPoint) {
+        let isInside = panel.isVisible
+            && RelayPointerHoverState.contains(location, in: panel.frame)
+        guard let change = hoverState.update(isInside: isInside) else {
+            return
+        }
+        pointerHoverChanged(change)
     }
 
     private func screenParametersDidChange() {
@@ -396,7 +411,7 @@ final class RelayNotchPanelController {
     private func dismissIfOutsidePanel(at location: CGPoint) {
         guard
             panel.isVisible,
-            !panel.frame.contains(location),
+            !RelayPointerHoverState.contains(location, in: panel.frame),
             shouldDismissOnOutsideClick()
         else {
             return
@@ -444,7 +459,10 @@ final class RelayNotchPanelController {
                 return
             }
             let pointerRemainsInside = panel.isVisible
-                && panel.frame.contains(NSEvent.mouseLocation)
+                && RelayPointerHoverState.contains(
+                    NSEvent.mouseLocation,
+                    in: panel.frame
+                )
             guard let target = RelayHoverPresentation.exitTarget(
                 from: presentation,
                 draftsCanDismiss: presentationState.drafts.canDismiss,
@@ -467,7 +485,7 @@ final class RelayNotchPanelController {
         }
     }
 
-    private func removePointerDisplayMonitoring() {
+    private func removePointerMonitoring() {
         displayFollower.cancel()
         if let globalMouseMoveMonitor {
             NSEvent.removeMonitor(globalMouseMoveMonitor)
@@ -501,6 +519,6 @@ final class RelayNotchPanelController {
     isolated deinit {
         hoverCollapseTask?.cancel()
         removeOutsideClickMonitoring()
-        removePointerDisplayMonitoring()
+        removePointerMonitoring()
     }
 }

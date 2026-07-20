@@ -38,7 +38,6 @@ struct RelayNotchPanelHost: View {
             submitPendingAnswers: submitPendingAnswers,
             submitPendingDecision: submitPendingDecision,
             requestPresentation: state.requestPresentation,
-            pointerHoverChanged: state.pointerHoverChanged,
             priorityActivityChanged: state.priorityActivityChanged
         )
         .onChange(of: model.voiceSetup, initial: true) { _, voiceSetup in
