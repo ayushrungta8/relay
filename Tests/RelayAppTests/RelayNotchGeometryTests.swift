@@ -37,7 +37,7 @@ struct RelayNotchGeometryTests {
 
         #expect(frame.midX == screen.midX)
         #expect(frame.maxY == screen.maxY)
-        #expect(frame.size == CGSize(width: 400, height: 80))
+        #expect(frame.size == CGSize(width: 468, height: 42))
     }
 
     @Test
@@ -68,7 +68,7 @@ struct RelayNotchGeometryTests {
         #expect(
             frame.size == CGSize(
                 width: safeArea.minimumCompactPanelWidth,
-                height: 80
+                height: 42
             )
         )
         #expect(frame.width > safeArea.contentClearanceWidth)
@@ -92,7 +92,7 @@ struct RelayNotchGeometryTests {
     }
 
     @Test
-    func expandedOverlayReservesTheCameraSafeAreaAboveItsContent() {
+    func expandedOverlayIntegratesContentWithTheCameraSafeArea() {
         let frame = RelayNotchGeometry.frame(
             for: .expanded,
             screenFrame: CGRect(x: 0, y: 0, width: 1_512, height: 982),
@@ -113,7 +113,7 @@ struct RelayNotchGeometryTests {
         )
 
         #expect(frame.maxY == 982)
-        #expect(frame.size == CGSize(width: 700, height: 558))
+        #expect(frame.size == CGSize(width: 700, height: 520))
     }
 
     @Test

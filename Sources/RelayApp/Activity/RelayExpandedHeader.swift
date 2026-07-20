@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct RelayExpandedHeader: View {
+    static let height: CGFloat = 46
+
     let summary: String
     let safeArea: RelayNotchSafeArea
     let canOpenInCodex: Bool
@@ -50,7 +52,6 @@ struct RelayExpandedHeader: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 16)
-        .frame(height: 46)
-        .padding(.top, max(0, safeArea.topInset))
+        .frame(height: Self.height)
     }
 }

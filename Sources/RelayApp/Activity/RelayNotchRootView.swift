@@ -39,12 +39,24 @@ struct RelayNotchRootView: View {
     var body: some View {
         ZStack {
             notchShape
-                .fill(shellLighting)
+                .fill(shellFill)
 
-            RelayAmbientLightView(
-                state: activity.compactState,
-                isExpanded: presentation == .expanded
-            )
+            if presentation == .expanded {
+                RelayAmbientLightView(
+                    state: activity.compactState,
+                    isExpanded: true
+                )
+            }
+
+            if presentation == .expanded {
+                VStack(spacing: 0) {
+                    Color.black
+                        .frame(height: expandedHeaderStripHeight)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+            }
 
             Group {
                 switch presentation {
@@ -110,10 +122,19 @@ struct RelayNotchRootView: View {
         }
         .clipShape(notchShape)
         .overlay {
-            notchShape
-                .stroke(edgeLighting, lineWidth: 1)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            if presentation == .expanded {
+                notchShape
+                    .stroke(edgeLighting, lineWidth: 1)
+                    .mask {
+                        VStack(spacing: 0) {
+                            Color.clear
+                                .frame(height: expandedHeaderStripHeight)
+                            Color.white
+                        }
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
         .contentShape(notchShape)
         .tint(RelayPalette.accent)
@@ -193,6 +214,22 @@ struct RelayNotchRootView: View {
             ],
             startPoint: .top,
             endPoint: .bottom
+        )
+    }
+
+    private var shellFill: AnyShapeStyle {
+        switch presentation {
+        case .peek, .compact:
+            AnyShapeStyle(.black)
+        case .hidden, .expanded:
+            AnyShapeStyle(shellLighting)
+        }
+    }
+
+    private var expandedHeaderStripHeight: CGFloat {
+        max(
+            CGFloat(safeArea.topInset),
+            RelayExpandedHeader.height
         )
     }
 

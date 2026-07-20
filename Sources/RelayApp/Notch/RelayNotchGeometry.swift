@@ -14,6 +14,7 @@ enum RelayNotchGeometry {
             leftAuxiliaryArea: leftAuxiliaryArea,
             rightAuxiliaryArea: rightAuxiliaryArea
         )
+        let hasCameraHousing = safeAreaInsets.top > 0
 
         guard presentation != .hidden else {
             return CGRect(
@@ -24,13 +25,17 @@ enum RelayNotchGeometry {
 
         let requiredWidth = switch presentation {
         case .peek, .compact:
-            max(
-                targetWidth(for: presentation),
-                RelayNotchSafeArea(
-                    topInset: 0,
-                    obstructionWidth: obstructionWidth
-                ).minimumCompactPanelWidth
-            )
+            if hasCameraHousing {
+                max(
+                    targetWidth(for: presentation),
+                    RelayNotchSafeArea(
+                        topInset: safeAreaInsets.top,
+                        obstructionWidth: obstructionWidth
+                    ).minimumCompactPanelWidth
+                )
+            } else {
+                targetWidth(for: presentation)
+            }
         case .hidden, .expanded:
             targetWidth(for: presentation)
         }
@@ -41,7 +46,8 @@ enum RelayNotchGeometry {
         )
         let contentHeight = targetHeight(for: presentation)
         let cameraClearance = max(0, safeAreaInsets.top)
-        let height = min(contentHeight + cameraClearance, maximumHeight)
+        let requiredHeight = max(contentHeight, cameraClearance)
+        let height = min(requiredHeight, maximumHeight)
         let centeredX = screenFrame.midX - width / 2
         let originX = min(
             max(centeredX, visibleFrame.minX),
