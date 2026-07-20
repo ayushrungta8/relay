@@ -130,7 +130,9 @@ public enum RelayDynamicTools {
                     ),
                     "cwd": RelayJSONSchemaProperty(
                         description: """
-                        Absolute working-directory path for the worker task.
+                        Absolute existing working-directory path for the worker \
+                        task. Resolve it from the selected task or a uniquely \
+                        matching recent project; never invent a path.
                         """
                     ),
                 ],

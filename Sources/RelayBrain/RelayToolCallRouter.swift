@@ -371,6 +371,16 @@ public actor RelayToolCallRouter {
             )
         }
 
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: path,
+            isDirectory: &isDirectory
+        ), isDirectory.boolValue else {
+            throw ArgumentValidationError(
+                message: "Argument '\(key)' must be an existing directory."
+            )
+        }
+
         return path
     }
 }

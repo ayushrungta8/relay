@@ -9,7 +9,7 @@ struct CodexControllerSessionAdapterTests {
     func controllerCacheChangesWhenItsBehaviorPromptChanges() {
         #expect(
             RelayControllerThreadFileStore.defaultFileURL.lastPathComponent
-                == "controller-thread-id-v4"
+            == "controller-thread-id-v5"
         )
     }
 

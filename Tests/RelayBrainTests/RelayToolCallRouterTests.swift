@@ -112,7 +112,7 @@ struct RelayToolCallRouterTests {
         let result = await router.route(
             toolName: "relay_start_task",
             argumentsJSON: """
-                {"prompt":"Build the settings view","cwd":"/Projects/Relay"}
+                {"prompt":"Build the settings view","cwd":"/tmp"}
                 """
         )
 
@@ -129,7 +129,7 @@ struct RelayToolCallRouterTests {
                 == [
                     .start(
                         prompt: "Build the settings view",
-                        cwd: "/Projects/Relay"
+                        cwd: "/tmp"
                     ),
                 ]
         )
@@ -311,6 +311,31 @@ struct RelayToolCallRouterTests {
     }
 
     @Test
+    func startTaskRejectsAnAbsolutePathThatIsNotAnExistingDirectory() async throws {
+        let operations = TaskOperationsSpy()
+        let router = RelayToolCallRouter(operations: operations)
+        let missing = "/relay-tests/missing-\(UUID().uuidString)"
+        let arguments = try JSONSerialization.data(
+            withJSONObject: ["prompt": "Do work", "cwd": missing]
+        )
+
+        let result = await router.route(
+            toolName: "relay_start_task",
+            argumentsJSON: arguments
+        )
+
+        #expect(!result.success)
+        let object = try resultObject(result)
+        let error = try #require(object["error"] as? [String: Any])
+        #expect(error["code"] as? String == "invalid_arguments")
+        #expect(
+            error["message"] as? String
+                == "Argument 'cwd' must be an existing directory."
+        )
+        #expect(await operations.recordedCalls().isEmpty)
+    }
+
+    @Test
     func unknownToolReturnsAStructuredFailure() async throws {
         let operations = TaskOperationsSpy()
         let router = RelayToolCallRouter(operations: operations)
@@ -355,7 +380,7 @@ struct RelayToolCallRouterTests {
             ("relay_get_task", #"{"id":"task-1"}"#),
             (
                 "relay_start_task",
-                #"{"prompt":"Do work","cwd":"/Projects/Relay"}"#
+                #"{"prompt":"Do work","cwd":"/tmp"}"#
             ),
             (
                 "relay_send_to_task",

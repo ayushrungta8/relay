@@ -19,7 +19,7 @@ struct RelayCommandComposerView: View {
 
             TextField(
                 text: $text,
-                prompt: Text("Ask Relay about these tasks…")
+                prompt: Text("Ask Relay about tasks or start something…")
                     .foregroundStyle(RelayPalette.secondaryText)
             ) {
                 EmptyView()
