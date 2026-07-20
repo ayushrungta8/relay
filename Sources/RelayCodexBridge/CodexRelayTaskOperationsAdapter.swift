@@ -65,18 +65,13 @@ public actor CodexRelayTaskOperationsAdapter: RelayTaskOperations {
 
     public func startTask(
         prompt: String,
-        cwd: String
+        cwd: String?
     ) async throws -> RelayTaskSummary {
         let launch = try await client.startTask(
             prompt: prompt,
             cwd: cwd
         )
         return Self.summary(launch.thread)
-    }
-
-    public func sendToTask(id: String, prompt: String) async throws {
-        try await ensureWorkerThread(id: id)
-        _ = try await client.sendToTask(id: id, prompt: prompt)
     }
 
     public func interruptTask(id: String) async throws {

@@ -14,7 +14,6 @@ struct RelayDynamicToolDefinitionsTests {
                     "relay_get_attention_inbox",
                     "relay_get_usage",
                     "relay_start_task",
-                    "relay_send_to_task",
                     "relay_interrupt_task",
                 ]
         )
@@ -50,8 +49,7 @@ struct RelayDynamicToolDefinitionsTests {
             ("relay_get_task", ["id"], []),
             ("relay_get_attention_inbox", [], []),
             ("relay_get_usage", [], []),
-            ("relay_start_task", ["cwd", "prompt"], ["cwd", "prompt"]),
-            ("relay_send_to_task", ["id", "prompt"], ["id", "prompt"]),
+            ("relay_start_task", ["cwd", "prompt"], ["prompt"]),
             ("relay_interrupt_task", ["id"], ["id"]),
         ]
     )

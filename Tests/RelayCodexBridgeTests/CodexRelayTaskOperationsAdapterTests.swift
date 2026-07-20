@@ -39,7 +39,7 @@ struct CodexRelayTaskOperationsAdapterTests {
     }
 
     @Test
-    func refusesToSteerOrInterruptTheController() async throws {
+    func refusesToInterruptTheController() async throws {
         let rpc = TaskAdapterRPCStub()
         let store = TaskAdapterControllerStore(id: "controller-by-id")
         let adapter = CodexRelayTaskOperationsAdapter(
@@ -47,12 +47,6 @@ struct CodexRelayTaskOperationsAdapterTests {
             controllerThreadStore: store
         )
 
-        await #expect(throws: CodexRelayTaskOperationsError.self) {
-            try await adapter.sendToTask(
-                id: "controller-by-id",
-                prompt: "Manage yourself"
-            )
-        }
         await #expect(throws: CodexRelayTaskOperationsError.self) {
             try await adapter.interruptTask(id: "controller-by-id")
         }

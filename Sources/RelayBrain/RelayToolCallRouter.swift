@@ -172,29 +172,13 @@ public actor RelayToolCallRouter {
                     allowedKeys: ["prompt", "cwd"]
                 )
                 let prompt = try requiredString("prompt", in: arguments)
-                let cwd = try requiredAbsolutePath("cwd", in: arguments)
+                let cwd = try optionalAbsolutePath("cwd", in: arguments)
                 let task = try await operations.startTask(
                     prompt: prompt,
                     cwd: cwd
                 )
                 return success(
                     TaskPayload(ok: true, tool: toolName, task: task)
-                )
-            case .sendToTask:
-                let arguments = try validatedArguments(
-                    from: argumentsJSON,
-                    allowedKeys: ["id", "prompt"]
-                )
-                let id = try requiredString("id", in: arguments)
-                let prompt = try requiredString("prompt", in: arguments)
-                try await operations.sendToTask(id: id, prompt: prompt)
-                return success(
-                    ActionPayload(
-                        ok: true,
-                        tool: toolName,
-                        taskId: id,
-                        message: "Prompt sent to task."
-                    )
                 )
             case .interruptTask:
                 let arguments = try validatedArguments(
@@ -382,6 +366,14 @@ public actor RelayToolCallRouter {
         }
 
         return path
+    }
+
+    private func optionalAbsolutePath(
+        _ key: String,
+        in arguments: [String: Any]
+    ) throws -> String? {
+        guard arguments[key] != nil else { return nil }
+        return try requiredAbsolutePath(key, in: arguments)
     }
 }
 

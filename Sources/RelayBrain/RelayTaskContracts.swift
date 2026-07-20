@@ -64,8 +64,7 @@ public struct RelayTaskSummary: Sendable, Equatable, Encodable {
 public protocol RelayTaskOperations: Sendable {
     func listTasks() async throws -> [RelayTaskSummary]
     func getTask(id: String) async throws -> RelayTaskSummary?
-    func startTask(prompt: String, cwd: String) async throws -> RelayTaskSummary
-    func sendToTask(id: String, prompt: String) async throws
+    func startTask(prompt: String, cwd: String?) async throws -> RelayTaskSummary
     func interruptTask(id: String) async throws
 }
 

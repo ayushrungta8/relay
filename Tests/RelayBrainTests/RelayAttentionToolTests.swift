@@ -195,11 +195,10 @@ private actor SupervisionTaskOperationsStub: RelayTaskOperations {
         tasksByID[id]
     }
 
-    func startTask(prompt: String, cwd: String) async throws -> RelayTaskSummary {
+    func startTask(prompt: String, cwd: String?) async throws -> RelayTaskSummary {
         makeTask(id: "started")
     }
 
-    func sendToTask(id: String, prompt: String) async throws {}
     func interruptTask(id: String) async throws {}
 }
 

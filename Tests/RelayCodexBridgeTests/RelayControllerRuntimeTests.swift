@@ -211,12 +211,8 @@ private actor TaskOperationsStub: RelayTaskOperations {
 
     func startTask(
         prompt: String,
-        cwd: String
+        cwd: String?
     ) async throws -> RelayTaskSummary {
-        throw StubError.unexpected
-    }
-
-    func sendToTask(id: String, prompt: String) async throws {
         throw StubError.unexpected
     }
 

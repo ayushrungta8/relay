@@ -7,7 +7,6 @@ public enum RelayDynamicToolName: String, CaseIterable, Sendable {
     case getAttentionInbox = "relay_get_attention_inbox"
     case getUsage = "relay_get_usage"
     case startTask = "relay_start_task"
-    case sendToTask = "relay_send_to_task"
     case interruptTask = "relay_interrupt_task"
 }
 
@@ -64,7 +63,7 @@ public enum RelayDynamicTools {
             List Codex worker tasks updated within the rolling last 24 hours. \
             Returns each task's current status and single latest progress \
             message. Use for broad questions such as “what’s the status?” or \
-            before deciding whether existing work should be steered.
+            to resolve the project directory for a new task.
             """,
             inputSchema: RelayJSONSchema(properties: [:], required: [])
         ),
@@ -116,9 +115,9 @@ public enum RelayDynamicTools {
         RelayDynamicToolDefinition(
             name: RelayDynamicToolName.startTask.rawValue,
             description: """
-            Start a new visible Codex worker task for work that is not already \
-            covered by an existing task. The worker, not the controller, \
-            performs the work.
+            Start a new visible Codex worker task. Always use a new task for \
+            delegated work; never append new work to an existing task. The \
+            worker, not the controller, performs the work.
             """,
             inputSchema: RelayJSONSchema(
                 properties: [
@@ -130,36 +129,15 @@ public enum RelayDynamicTools {
                     ),
                     "cwd": RelayJSONSchemaProperty(
                         description: """
-                        Absolute existing working-directory path for the worker \
-                        task. Use a selected or recent project's path only when \
-                        the request belongs to that project. For a general Mac \
-                        or web action, use the controller's configured working \
-                        directory as a neutral location. Never invent a path.
+                        Absolute existing project directory for project work. \
+                        Omit this for general Mac or web actions, research, \
+                        questions, and all other projectless work; Relay will \
+                        create a normal Codex chat directory. Never invent a \
+                        project path.
                         """
                     ),
                 ],
-                required: ["prompt", "cwd"]
-            )
-        ),
-        RelayDynamicToolDefinition(
-            name: RelayDynamicToolName.sendToTask.rawValue,
-            description: """
-            Send follow-up instructions to an existing visible Codex worker \
-            task. Use this to steer matching work instead of starting a \
-            duplicate task.
-            """,
-            inputSchema: RelayJSONSchema(
-                properties: [
-                    "id": RelayJSONSchemaProperty(
-                        description: "The exact id of the worker task to steer."
-                    ),
-                    "prompt": RelayJSONSchemaProperty(
-                        description: """
-                        The new instruction or context to send to the worker.
-                        """
-                    ),
-                ],
-                required: ["id", "prompt"]
+                required: ["prompt"]
             )
         ),
         RelayDynamicToolDefinition(
