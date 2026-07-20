@@ -15,6 +15,10 @@ enum RelayNotchGeometry {
             rightAuxiliaryArea: rightAuxiliaryArea
         )
         let hasCameraHousing = safeAreaInsets.top > 0
+        let safeArea = RelayNotchSafeArea(
+            topInset: safeAreaInsets.top,
+            obstructionWidth: obstructionWidth
+        )
 
         guard presentation != .hidden else {
             return CGRect(
@@ -24,17 +28,20 @@ enum RelayNotchGeometry {
         }
 
         let requiredWidth = switch presentation {
-        case .peek, .compact:
+        case .peek:
             if hasCameraHousing {
                 max(
                     targetWidth(for: presentation),
-                    RelayNotchSafeArea(
-                        topInset: safeAreaInsets.top,
-                        obstructionWidth: obstructionWidth
-                    ).minimumCompactPanelWidth
+                    safeArea.minimumPeekPanelWidth
                 )
             } else {
                 targetWidth(for: presentation)
+            }
+        case .compact:
+            if hasCameraHousing {
+                safeArea.compactCounterPanelWidth
+            } else {
+                RelayNotchSafeArea.notchlessCompactDiameter
             }
         case .hidden, .expanded:
             targetWidth(for: presentation)
@@ -44,7 +51,16 @@ enum RelayNotchGeometry {
             visibleFrame.height * 0.7,
             topAnchor - visibleFrame.minY
         )
-        let contentHeight = targetHeight(for: presentation)
+        let contentHeight = switch presentation {
+        case .compact:
+            if hasCameraHousing {
+                safeArea.topInset
+            } else {
+                RelayNotchSafeArea.notchlessCompactDiameter
+            }
+        case .hidden, .peek, .expanded:
+            targetHeight(for: presentation)
+        }
         let cameraClearance = max(0, safeAreaInsets.top)
         let requiredHeight = max(contentHeight, cameraClearance)
         let height = min(requiredHeight, maximumHeight)
@@ -78,8 +94,10 @@ enum RelayNotchGeometry {
         switch presentation {
         case .hidden:
             0
-        case .peek, .compact:
+        case .peek:
             400
+        case .compact:
+            RelayNotchSafeArea.notchlessCompactDiameter
         case .expanded:
             700
         }
@@ -91,8 +109,10 @@ enum RelayNotchGeometry {
         switch presentation {
         case .hidden:
             0
-        case .peek, .compact:
+        case .peek:
             42
+        case .compact:
+            RelayNotchSafeArea.notchlessCompactDiameter
         case .expanded:
             520
         }

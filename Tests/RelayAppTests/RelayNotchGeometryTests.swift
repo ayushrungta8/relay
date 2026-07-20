@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct RelayNotchGeometryTests {
     @Test
-    func builtInNotchUsesAuxiliaryAreasAndScreenTop() {
+    func builtInNotchPeekUsesAuxiliaryAreasAndScreenTop() {
         let screen = CGRect(x: 0, y: 0, width: 1_512, height: 982)
         let visible = CGRect(x: 0, y: 25, width: 1_512, height: 919)
         let leftAuxiliary = CGRect(
@@ -41,7 +41,43 @@ struct RelayNotchGeometryTests {
     }
 
     @Test
-    func compactOverlayWidensForABroadCameraObstruction() {
+    func builtInNotchCompactUsesOnlyTheNotchBand() {
+        let screen = CGRect(x: 0, y: 0, width: 1_512, height: 982)
+        let safeArea = RelayNotchSafeArea(
+            topInset: 38,
+            obstructionWidth: 224
+        )
+        let frame = RelayNotchGeometry.frame(
+            for: .compact,
+            screenFrame: screen,
+            visibleFrame: CGRect(x: 0, y: 25, width: 1_512, height: 919),
+            safeAreaInsets: .init(top: 38, left: 0, bottom: 0, right: 0),
+            leftAuxiliaryArea: CGRect(
+                x: 0,
+                y: 944,
+                width: 644,
+                height: 38
+            ),
+            rightAuxiliaryArea: CGRect(
+                x: 868,
+                y: 944,
+                width: 644,
+                height: 38
+            )
+        )
+
+        #expect(frame.maxY == screen.maxY)
+        #expect(
+            frame.size == CGSize(
+                width: safeArea.compactCounterPanelWidth,
+                height: 38
+            )
+        )
+        #expect(frame.width < 400)
+    }
+
+    @Test
+    func compactCounterOverlayWidensForABroadCameraObstruction() {
         let safeArea = RelayNotchSafeArea(
             topInset: 38,
             obstructionWidth: 480
@@ -67,11 +103,11 @@ struct RelayNotchGeometryTests {
 
         #expect(
             frame.size == CGSize(
-                width: safeArea.minimumCompactPanelWidth,
-                height: 42
+                width: safeArea.compactCounterPanelWidth,
+                height: 38
             )
         )
-        #expect(frame.width > safeArea.contentClearanceWidth)
+        #expect(frame.width > safeArea.compactCenterClearanceWidth)
     }
 
     @Test
@@ -88,6 +124,20 @@ struct RelayNotchGeometryTests {
         )
 
         #expect(frame.maxY == screen.maxY)
+        #expect(frame.size == CGSize(width: 28, height: 28))
+    }
+
+    @Test
+    func notchlessPeekRetainsItsLabeledFootprint() {
+        let frame = RelayNotchGeometry.frame(
+            for: .peek,
+            screenFrame: CGRect(x: 0, y: 0, width: 1_920, height: 1_080),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1_920, height: 1_055),
+            safeAreaInsets: .init(),
+            leftAuxiliaryArea: nil,
+            rightAuxiliaryArea: nil
+        )
+
         #expect(frame.size == CGSize(width: 400, height: 42))
     }
 
