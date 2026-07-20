@@ -9,12 +9,15 @@ action.
 
 ## Surface hierarchy
 
-- **Resting:** the compact pill remains visible below the camera safe area.
+- **Resting:** on a notched display, Relay adds no visible surface when no task
+  is active; the native camera housing remains visually unchanged.
 - **Peek:** a top-centered black capsule below the camera safe area, showing
   one state summary for roughly four seconds without taking keyboard focus.
-- **Compact:** a 400-point-wide notch extension with one priority summary and
-  a quiet secondary activity count. Its 42-point pill begins below the camera
-  and menu-bar obstruction rather than inside it.
+- **Compact:** 18-point semantic counters flank the physical camera housing
+  inside the existing menu-bar and notch height. Attention appears on the left
+  and running or voice activity on the right. There is no status text,
+  chevron, shell, or added height. Notchless displays use a 28-point circular
+  fallback.
 - **Expanded:** a fixed 700-by-456-point content surface with a task rail,
   selected-task detail, two capacity windows, and the Relay composer. On a
   notched display, its frame also reserves the top camera safe area so the
@@ -43,7 +46,8 @@ The active state may cast a faint, bounded ambient glow into the shell. Large
 surfaces remain near-black; semantic color is reserved for attention, progress,
 selection, and primary actions.
 
-State is always paired with an icon and label, not color alone.
+State is always paired with a numeral or symbol and a spoken accessibility
+label, not color alone.
 
 ## Typography
 
@@ -65,14 +69,15 @@ surface remains visible against both dark and light content behind it.
 Panel transitions use a 180- to 240-millisecond ease-out curve. Expansion grows
 from the top-center anchor while content crossfades and translates no more than
 8 points. Event peeks do not bounce. Reduce Motion replaces size choreography
-with an opacity transition.
+with an opacity transition. Compact attention, failure, and completion motion
+runs once and settles; only active running work may use a quiet looping ring.
 
 ## Interaction
 
 - Relay launches directly into compact mode without a menu-bar extra or Dock
   presence.
-- Hovering or clicking the compact pill expands Relay. Leaving the surface
-  returns it to compact after 300 milliseconds.
+- Hovering or clicking a compact counter or the notch hit region expands
+  Relay. Leaving the surface returns it to compact after 300 milliseconds.
 - Escape, the global shortcut, and outside clicks toggle expanded Relay back
   to compact.
 - A dirty answer or follow-up draft pins the expanded surface until cancelled
