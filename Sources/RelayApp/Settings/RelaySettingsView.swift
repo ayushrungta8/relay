@@ -11,6 +11,44 @@ struct RelaySettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                settingsGroup("Relay AI") {
+                    settingRow(
+                        "Model",
+                        detail: settings.controllerModel.detail
+                    ) {
+                        Picker(
+                            "Model",
+                            selection: $settings.controllerModel
+                        ) {
+                            ForEach(RelayControllerModel.allCases) { model in
+                                Text(model.title).tag(model)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 176)
+                    }
+                    rowDivider
+                    settingRow(
+                        "Reasoning effort",
+                        detail: "Higher effort can improve difficult answers but takes longer."
+                    ) {
+                        Picker(
+                            "Reasoning effort",
+                            selection: $settings.controllerReasoningEffort
+                        ) {
+                            ForEach(
+                                settings.controllerModel.supportedReasoningEfforts
+                            ) { effort in
+                                Text(effort.title).tag(effort)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 128)
+                    }
+                }
+
                 settingsGroup("Behavior") {
                     settingToggle(
                         "Show Relay at launch",

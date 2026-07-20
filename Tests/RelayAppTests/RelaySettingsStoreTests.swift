@@ -18,6 +18,8 @@ struct RelaySettingsStoreTests {
         #expect(settings.automaticallyChecksForUpdates)
         #expect(settings.updateCadence == .daily)
         #expect(!settings.autoApplyResetCredits)
+        #expect(settings.controllerModel == .luna)
+        #expect(settings.controllerReasoningEffort == .medium)
     }
 
     @Test
@@ -38,6 +40,8 @@ struct RelaySettingsStoreTests {
         settings.automaticallyChecksForUpdates = false
         settings.updateCadence = .weekly
         settings.autoApplyResetCredits = true
+        settings.controllerModel = .sol
+        settings.controllerReasoningEffort = .ultra
 
         let restored = RelaySettingsStore(defaults: defaults)
         #expect(!restored.showAtLaunch)
@@ -49,6 +53,8 @@ struct RelaySettingsStoreTests {
         #expect(!restored.automaticallyChecksForUpdates)
         #expect(restored.updateCadence == .weekly)
         #expect(restored.autoApplyResetCredits)
+        #expect(restored.controllerModel == .sol)
+        #expect(restored.controllerReasoningEffort == .ultra)
     }
 
     @Test
@@ -66,6 +72,19 @@ struct RelaySettingsStoreTests {
         #expect(changes.contains(.automaticPeeks(true)))
         #expect(changes.contains(.updateCadence(.daily)))
         #expect(changes.last == .restoredDefaults)
+        #expect(settings.controllerModel == .luna)
+        #expect(settings.controllerReasoningEffort == .medium)
+    }
+
+    @Test
+    func changingModelFallsBackToItsDefaultSupportedEffort() {
+        let settings = RelaySettingsStore(defaults: ephemeralDefaults())
+        settings.controllerModel = .sol
+        settings.controllerReasoningEffort = .ultra
+
+        settings.controllerModel = .luna
+
+        #expect(settings.controllerReasoningEffort == .medium)
     }
 
     @Test

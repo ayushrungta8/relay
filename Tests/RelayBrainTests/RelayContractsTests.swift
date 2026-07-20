@@ -67,8 +67,8 @@ struct RelayContractsTests {
         )
         #expect(configuration.dynamicTools == RelayDynamicTools.definitions)
         #expect(configuration.dynamicTools.count == 8)
-        #expect(configuration.model == "gpt-5.6-terra")
-        #expect(configuration.reasoningEffort == "low")
+        #expect(configuration.model == "gpt-5.6-luna")
+        #expect(configuration.reasoningEffort == "medium")
 
         let instructions = configuration.developerInstructions.lowercased()
         #expect(instructions.contains("liaison"))
