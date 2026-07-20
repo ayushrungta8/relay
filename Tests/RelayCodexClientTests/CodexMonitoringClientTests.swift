@@ -32,6 +32,30 @@ struct CodexMonitoringClientTests {
     }
 
     @Test
+    func surfacesDesktopOwnedApprovalAsNeedingInput() async throws {
+        let rollout = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString)
+            .appendingPathExtension("jsonl")
+        try """
+        {"type":"event_msg","payload":{"type":"task_started","turn_id":"turn-live"}}
+        {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"call-approval","name":"exec","input":"{\\"sandbox_permissions\\":\\"require_escalated\\"}"}}
+        """.write(to: rollout, atomically: true, encoding: .utf8)
+        let rpc = DesktopOwnedTaskFixtureRPC(rolloutPath: rollout.path)
+        let source = MonitoringEventSource()
+        let client = CodexMonitoringClient(
+            rpc: rpc,
+            serverEvents: source.stream
+        )
+
+        let snapshot = try await client.snapshot(limit: 1)
+        let task = try #require(snapshot.tasks.first)
+
+        #expect(task.attentionState == .needsInput)
+        #expect(task.attentionReason == .structuredInteraction)
+        #expect(task.thread.activeFlags == [.waitingOnApproval])
+    }
+
+    @Test
     func readsTasksAndBothRateLimitWindowsAndResetCredits() async throws {
         let rpc = MonitoringFixtureRPC()
         let source = MonitoringEventSource()

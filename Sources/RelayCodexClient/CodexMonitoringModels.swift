@@ -137,6 +137,10 @@ struct CodexMonitoringThreadRecord: Decodable {
         sessionSnapshot: CodexSessionLogSnapshot?
     ) -> RelayTaskActivity {
         let isRunning = sessionSnapshot?.isRunning == true
+        let enrichedActiveFlags = thread.activeFlags
+            + (sessionSnapshot?.activeFlags ?? []).filter {
+                !thread.activeFlags.contains($0)
+            }
         let effectiveThread = if isRunning {
             CodexThread(
                 id: thread.id,
@@ -145,7 +149,7 @@ struct CodexMonitoringThreadRecord: Decodable {
                 cwd: thread.cwd,
                 updatedAt: thread.updatedAt,
                 status: .active,
-                activeFlags: thread.activeFlags
+                activeFlags: enrichedActiveFlags
             )
         } else {
             thread
