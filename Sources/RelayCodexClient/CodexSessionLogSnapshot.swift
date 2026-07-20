@@ -4,37 +4,71 @@ import RelayCore
 struct CodexSessionLogSnapshot: Sendable, Equatable {
     var isRunning = false
     var activeTurnID: String?
+    var activeFlags: [CodexThreadActiveFlag] = []
     var tokenUsage: RelayThreadTokenUsage?
     var usage: RelayUsageSnapshot?
 
     static func read(from url: URL) throws -> Self {
         let data = try Data(contentsOf: url, options: .mappedIfSafe)
         var snapshot = Self()
+        var pendingApprovalCallIDs: Set<String> = []
+        var pendingUserInputCallIDs: Set<String> = []
 
         for line in data.split(separator: 0x0A) where !line.isEmpty {
             guard let event = try? JSONDecoder().decode(
                 SessionEvent.self,
                 from: Data(line)
-            ), event.type == "event_msg" else {
+            ) else {
                 continue
             }
-            switch event.payload.type {
-            case "task_started":
-                snapshot.isRunning = true
-                snapshot.activeTurnID = event.payload.turnID
-            case "task_complete", "turn_aborted":
-                snapshot.isRunning = false
-                snapshot.activeTurnID = nil
-            case "token_count":
-                if let info = event.payload.info {
-                    snapshot.tokenUsage = info.relayUsage
+            switch event.type {
+            case "event_msg":
+                switch event.payload.type {
+                case "task_started":
+                    snapshot.isRunning = true
+                    snapshot.activeTurnID = event.payload.turnID
+                    pendingApprovalCallIDs.removeAll()
+                    pendingUserInputCallIDs.removeAll()
+                case "task_complete", "turn_aborted":
+                    snapshot.isRunning = false
+                    snapshot.activeTurnID = nil
+                    pendingApprovalCallIDs.removeAll()
+                    pendingUserInputCallIDs.removeAll()
+                case "token_count":
+                    if let info = event.payload.info {
+                        snapshot.tokenUsage = info.relayUsage
+                    }
+                    if let rateLimits = event.payload.rateLimits {
+                        snapshot.usage = rateLimits.relaySnapshot
+                    }
+                default:
+                    continue
                 }
-                if let rateLimits = event.payload.rateLimits {
-                    snapshot.usage = rateLimits.relaySnapshot
+            case "response_item":
+                guard let callID = event.payload.callID else { continue }
+                switch event.payload.type {
+                case "custom_tool_call", "function_call":
+                    if event.payload.isApprovalGatedCall {
+                        pendingApprovalCallIDs.insert(callID)
+                    }
+                    if event.payload.isUserInputCall {
+                        pendingUserInputCallIDs.insert(callID)
+                    }
+                case "custom_tool_call_output", "function_call_output":
+                    pendingApprovalCallIDs.remove(callID)
+                    pendingUserInputCallIDs.remove(callID)
+                default:
+                    continue
                 }
             default:
                 continue
             }
+        }
+        if snapshot.isRunning, !pendingApprovalCallIDs.isEmpty {
+            snapshot.activeFlags.append(.waitingOnApproval)
+        }
+        if snapshot.isRunning, !pendingUserInputCallIDs.isEmpty {
+            snapshot.activeFlags.append(.waitingOnUserInput)
         }
         return snapshot
     }
@@ -49,12 +83,30 @@ private struct SessionEvent: Decodable {
         let info: TokenInfo?
         let rateLimits: RateLimits?
         let turnID: String?
+        let callID: String?
+        let name: String?
+        let input: String?
+        let arguments: String?
 
         private enum CodingKeys: String, CodingKey {
             case type
             case info
             case rateLimits = "rate_limits"
             case turnID = "turn_id"
+            case callID = "call_id"
+            case name
+            case input
+            case arguments
+        }
+
+        var isApprovalGatedCall: Bool {
+            let body = input ?? arguments ?? ""
+            return body.contains("require_escalated")
+                && body.contains("sandbox_permissions")
+        }
+
+        var isUserInputCall: Bool {
+            name == "request_user_input"
         }
     }
 }

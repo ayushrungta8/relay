@@ -74,9 +74,11 @@ check immediately. After the first Sparkle-enabled release is installed,
 updates download, replace Relay, and relaunch without another GitHub download
 or DMG installation.
 
-The initial unsigned installation still requires the one-time Gatekeeper step
-above. Update archives and the update feed are independently protected by a
-Sparkle EdDSA signature.
+The app is signed with Relay's stable self-signed certificate so macOS can
+preserve privacy permissions across updates without an Apple Developer Program
+membership. The initial installation still requires the one-time Gatekeeper
+step above. Update archives and the update feed are independently protected by
+a Sparkle EdDSA signature.
 
 ## Shortcuts
 

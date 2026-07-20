@@ -18,9 +18,11 @@ action.
   and running or voice activity on the right. There is no status text,
   chevron, shell, or added height. Notchless displays use a 28-point circular
   fallback.
-- **Expanded:** a fixed 700-by-456-point content surface with a task rail,
-  selected-task detail, two capacity windows, and the Relay composer. On a
-  notched display, its frame also reserves the top camera safe area so the
+- **Expanded:** a fixed 700-by-456-point content surface with full-width task
+  rows, inline selected-task detail, two capacity windows, and the Relay
+  composer. Project, context, recency, and status scan at the trailing edge of
+  each task; selecting a row reveals its latest activity and actions in place.
+  On a notched display, the frame also reserves the top camera safe area so the
   header begins below the physical obstruction.
 
 Panel geometry is controller-owned and deterministic. Internal regions scroll

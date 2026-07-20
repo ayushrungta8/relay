@@ -37,6 +37,66 @@ struct CodexSessionLogSnapshotTests {
     }
 
     @Test
+    func detectsUnresolvedDesktopApprovalFromRollout() throws {
+        let callID = "call-approval"
+        let url = try fixture(
+            lines: [
+                event("task_started", extra: "\"turn_id\":\"turn-1\""),
+                try toolCall(
+                    type: "custom_tool_call",
+                    callID: callID,
+                    name: "exec",
+                    input: #"{"sandbox_permissions":"require_escalated"}"#
+                ),
+            ]
+        )
+
+        let snapshot = try CodexSessionLogSnapshot.read(from: url)
+
+        #expect(snapshot.activeFlags == [.waitingOnApproval])
+    }
+
+    @Test
+    func completedDesktopApprovalIsNoLongerPending() throws {
+        let callID = "call-approval"
+        let url = try fixture(
+            lines: [
+                event("task_started", extra: "\"turn_id\":\"turn-1\""),
+                try toolCall(
+                    type: "custom_tool_call",
+                    callID: callID,
+                    name: "exec",
+                    input: #"{"sandbox_permissions":"require_escalated"}"#
+                ),
+                toolCallOutput(type: "custom_tool_call_output", callID: callID),
+            ]
+        )
+
+        let snapshot = try CodexSessionLogSnapshot.read(from: url)
+
+        #expect(snapshot.activeFlags.isEmpty)
+    }
+
+    @Test
+    func detectsUnresolvedDesktopUserInputFromRollout() throws {
+        let url = try fixture(
+            lines: [
+                event("task_started", extra: "\"turn_id\":\"turn-1\""),
+                try toolCall(
+                    type: "function_call",
+                    callID: "call-input",
+                    name: "request_user_input",
+                    input: "{}"
+                ),
+            ]
+        )
+
+        let snapshot = try CodexSessionLogSnapshot.read(from: url)
+
+        #expect(snapshot.activeFlags == [.waitingOnUserInput])
+    }
+
+    @Test
     func readsRateLimitWindowsUsingRolloutFieldNames() throws {
         let url = try fixture(
             lines: [tokenCount(
@@ -77,6 +137,25 @@ struct CodexSessionLogSnapshotTests {
     ) -> String {
         """
         {"timestamp":"2026-07-17T10:00:01Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80000,"cached_input_tokens":20000,"cache_write_input_tokens":0,"output_tokens":10000,"reasoning_output_tokens":5000,"total_tokens":95000},"last_token_usage":{"input_tokens":30000,"cached_input_tokens":5000,"cache_write_input_tokens":0,"output_tokens":5000,"reasoning_output_tokens":2000,"total_tokens":\(lastTotal)},"model_context_window":\(contextWindow)},"rate_limits":\(rateLimits)}}
+        """
+    }
+
+    private func toolCall(
+        type: String,
+        callID: String,
+        name: String,
+        input: String
+    ) throws -> String {
+        let data = try JSONEncoder().encode(input)
+        let encodedInput = String(decoding: data, as: UTF8.self)
+        return """
+        {"timestamp":"2026-07-17T10:00:01Z","type":"response_item","payload":{"type":"\(type)","call_id":"\(callID)","name":"\(name)","input":\(encodedInput)}}
+        """
+    }
+
+    private func toolCallOutput(type: String, callID: String) -> String {
+        """
+        {"timestamp":"2026-07-17T10:00:02Z","type":"response_item","payload":{"type":"\(type)","call_id":"\(callID)","output":[]}}
         """
     }
 }

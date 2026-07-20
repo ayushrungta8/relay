@@ -3,7 +3,6 @@ import SwiftUI
 
 struct RelaySelectedTaskView: View {
     let task: RelayTaskActivity
-    let tokenUsage: RelayThreadTokenUsage?
     let pendingInteractions: [RelayPendingInteraction]
     let drafts: RelayPanelDraftStore
     let actions: RelayTaskActions
@@ -15,29 +14,16 @@ struct RelaySelectedTaskView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    statusHeader
-
-                    Spacer(minLength: 24)
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        contextUsage
-                        actionRegion
-                    }
-                }
-                .padding(20)
-                .frame(
-                    minHeight: geometry.size.height,
-                    alignment: .top
-                )
-                .id(task.id)
-                .transition(reduceMotion ? .opacity : .relayTaskDetail)
-            }
-            .scrollIndicators(.never)
+        VStack(alignment: .leading, spacing: 14) {
+            activitySummary
+            actionRegion
         }
-        .background(RelayPalette.detailSurface)
+        .padding(.leading, 50)
+        .padding(.trailing, 16)
+        .padding(.bottom, 16)
+        .background(RelayPalette.elevatedSurface)
+        .id(task.id)
+        .transition(reduceMotion ? .opacity : .relayTaskDetail)
         .animation(detailAnimation, value: task.id)
         .onChange(of: task.id, initial: true) { _, _ in
             synchronizeFollowUp()
@@ -50,76 +36,40 @@ struct RelaySelectedTaskView: View {
         }
     }
 
-    private var statusHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(
-                statusTitle,
-                systemImage: RelayAccessibilityContract.status(
-                    for: task.attentionState
-                ).systemImage
-            )
-            .font(.callout)
-            .foregroundStyle(statusColor)
+    private var activitySummary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Latest activity")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(RelayPalette.secondaryText)
 
-            Text(RelayActivityPresentation.title(for: task))
-                .font(.title2)
-                .foregroundStyle(RelayPalette.primaryText)
-                .lineLimit(2)
+                Spacer()
+
+                Text("Updated \(updatedDate.formatted(.relative(presentation: .named)))")
+                    .font(.callout)
+                    .foregroundStyle(RelayPalette.tertiaryText)
+            }
 
             Text(updateCopy)
-                .font(.callout)
+                .font(.body)
                 .foregroundStyle(RelayPalette.secondaryText)
-                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
 
-            HStack(spacing: 16) {
-                Text(projectName)
-                Text("Updated \(updatedDate.formatted(.relative(presentation: .named)))")
-            }
-            .font(.callout)
-            .foregroundStyle(RelayPalette.secondaryText)
-            .lineLimit(1)
-        }
-    }
+            if let finalResponseCopy {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Final response")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(statusColor)
 
-    @ViewBuilder
-    private var contextUsage: some View {
-        if let contextPercentage = tokenUsage?.contextPercentage {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Context used")
-                    Spacer()
-                    Text(
-                        contextPercentage / 100,
-                        format: .percent.precision(.fractionLength(0))
-                    )
-                    .monospacedDigit()
+                    Text(finalResponseCopy)
+                        .font(.body)
+                        .foregroundStyle(RelayPalette.secondaryText)
+                        .lineLimit(6)
+                        .textSelection(.enabled)
                 }
-                .font(.callout)
-                .foregroundStyle(RelayPalette.primaryText)
-
-                RelayProgressBar(
-                    progress: clampedContextProgress,
-                    colors: [
-                        RelayPalette.accent,
-                        RelayPalette.accentHighlight,
-                    ]
-                )
-                    .id(reduceMotion ? contextPercentage : 0)
-                    .transition(.opacity)
-                    .animation(contextAnimation, value: contextPercentage)
-                    .accessibilityLabel("Latest turn context")
-                    .accessibilityValue(
-                        "\(Int(contextPercentage.rounded())) percent used"
-                    )
+                .padding(.top, 4)
             }
-        } else {
-            Label(
-                "Context unavailable",
-                systemImage: "gauge.with.dots.needle.0percent"
-            )
-            .font(.caption)
-            .foregroundStyle(RelayPalette.tertiaryText)
         }
     }
 
@@ -293,11 +243,6 @@ struct RelaySelectedTaskView: View {
         Date(timeIntervalSince1970: TimeInterval(task.thread.updatedAt))
     }
 
-    private var projectName: String {
-        let name = URL(filePath: task.thread.cwd).lastPathComponent
-        return name.isEmpty ? task.thread.cwd : name
-    }
-
     private var updateCopy: String {
         let update = task.latestUpdate?.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -312,17 +257,14 @@ struct RelaySelectedTaskView: View {
         }
     }
 
-    private var statusTitle: String {
-        if task.attentionReason == .inferredReplyRequest {
-            return "Needs your reply"
+    private var finalResponseCopy: String? {
+        let response = task.latestFinalResponse?.text.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard let response, !response.isEmpty, response != updateCopy else {
+            return nil
         }
-        return switch task.attentionState {
-        case .needsInput: "Needs your response"
-        case .failed: "Task failed"
-        case .ready: "Ready to review"
-        case .running: "Running"
-        case .idle: "Recent activity"
-        }
+        return response
     }
 
     private var statusColor: Color {
@@ -335,20 +277,10 @@ struct RelaySelectedTaskView: View {
         }
     }
 
-    private var clampedContextProgress: Double {
-        min(max((tokenUsage?.contextPercentage ?? 0) / 100, 0), 1)
-    }
-
     private var detailAnimation: Animation {
         reduceMotion
             ? .linear(duration: 0.12)
             : .easeOut(duration: 0.18)
-    }
-
-    private var contextAnimation: Animation {
-        reduceMotion
-            ? .linear(duration: 0.12)
-            : .easeInOut(duration: 0.24)
     }
 
     private var followUp: RelayTaskCardFollowUpState {
