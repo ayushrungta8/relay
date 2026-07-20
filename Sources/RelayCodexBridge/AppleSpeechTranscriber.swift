@@ -117,7 +117,7 @@ public actor AppleSpeechTranscriber: RelaySpeechTranscribing {
         >.Continuation?
 
     public init(
-        localeIdentifier: String = Locale.current.identifier,
+        localeIdentifier: String = RelaySpeechLocale.currentIdentifier,
         transcriptionTimeout: Duration = .seconds(5)
     ) {
         self.localeIdentifier = localeIdentifier

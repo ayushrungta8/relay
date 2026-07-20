@@ -25,8 +25,8 @@ struct RelaySettingsStoreTests {
         let defaults = ephemeralDefaults()
         let settings = RelaySettingsStore(defaults: defaults)
         let shortcut = RelayGlobalShortcut(
-            keyCode: 11,
-            modifiers: [.command, .shift]
+            keyCode: nil,
+            modifiers: [.function, .control, .option]
         )
 
         settings.showAtLaunch = false

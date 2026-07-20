@@ -44,4 +44,8 @@ final class RelayApplicationDelegate: NSObject, NSApplicationDelegate {
         panelController?.present(.expanded)
         return true
     }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        model?.retryShortcutRegistration()
+    }
 }

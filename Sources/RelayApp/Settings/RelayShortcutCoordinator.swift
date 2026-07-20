@@ -14,7 +14,7 @@ final class RelayShortcutCoordinator {
 
     init(
         monitorFactory: @escaping MonitorFactory = {
-            CarbonGlobalShortcutMonitor()
+            AccessibilityGlobalShortcutMonitor()
         }
     ) {
         self.monitorFactory = monitorFactory

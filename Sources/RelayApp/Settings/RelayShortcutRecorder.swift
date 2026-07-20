@@ -8,16 +8,18 @@ enum RelayShortcutPresentation {
     }
 
     nonisolated static func isValid(
-        keyCode: UInt32,
+        keyCode: UInt32?,
         modifiers: RelayShortcutModifiers
     ) -> Bool {
-        keyCode <= UInt32(UInt16.max) && !modifiers.isEmpty
+        if let keyCode, keyCode > UInt32(UInt16.max) { return false }
+        return !modifiers.isEmpty
     }
 
     nonisolated private static func modifierCopy(
         _ modifiers: RelayShortcutModifiers
     ) -> String {
         var copy = ""
+        if modifiers.contains(.function) { copy += "fn" }
         if modifiers.contains(.control) { copy += "⌃" }
         if modifiers.contains(.option) { copy += "⌥" }
         if modifiers.contains(.shift) { copy += "⇧" }
@@ -25,8 +27,9 @@ enum RelayShortcutPresentation {
         return copy
     }
 
-    nonisolated private static func keyCopy(_ keyCode: UInt32) -> String {
-        keyNames[keyCode] ?? "Key \(keyCode)"
+    nonisolated private static func keyCopy(_ keyCode: UInt32?) -> String {
+        guard let keyCode else { return "" }
+        return keyNames[keyCode] ?? "Key \(keyCode)"
     }
 
     nonisolated private static let keyNames: [UInt32: String] = [
@@ -49,6 +52,7 @@ struct RelayShortcutRecorder: View {
 
     @State private var isRecording = false
     @State private var eventMonitor: Any?
+    @State private var captureState = RelayShortcutCaptureState()
 
     var body: some View {
         Button(isRecording ? "Type shortcut…" : valueCopy) {
@@ -61,7 +65,7 @@ struct RelayShortcutRecorder: View {
             isRecording ? "Recording" : valueCopy
         )
         .accessibilityHint(
-            "Press a modifier and key. Escape cancels. Delete restores Option-Space."
+            "Press and release modifiers, or press modifiers and a key. Escape cancels. Delete restores Option-Space."
         )
         .onDisappear(perform: endRecording)
     }
@@ -73,8 +77,9 @@ struct RelayShortcutRecorder: View {
     private func beginRecording() {
         endRecording()
         isRecording = true
+        captureState = RelayShortcutCaptureState()
         eventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: .keyDown
+            matching: [.keyDown, .flagsChanged]
         ) { event in
             handle(event)
             return nil
@@ -82,6 +87,15 @@ struct RelayShortcutRecorder: View {
     }
 
     private func handle(_ event: NSEvent) {
+        if event.type == .flagsChanged {
+            if let shortcut = captureState.modifiersChanged(
+                RelayShortcutModifiers(event.modifierFlags)
+            ) {
+                commit(shortcut)
+            }
+            return
+        }
+
         switch event.keyCode {
         case 53:
             endRecording()
@@ -93,20 +107,20 @@ struct RelayShortcutRecorder: View {
                 event.modifierFlags
             )
             let keyCode = UInt32(event.keyCode)
-            guard RelayShortcutPresentation.isValid(
+            guard let shortcut = captureState.keyDown(
                 keyCode: keyCode,
                 modifiers: modifiers
             ) else {
                 NSSound.beep()
                 return
             }
-            let shortcut = RelayGlobalShortcut(
-                keyCode: keyCode,
-                modifiers: modifiers
-            )
-            endRecording()
-            onCommit(shortcut)
+            commit(shortcut)
         }
+    }
+
+    private func commit(_ shortcut: RelayGlobalShortcut) {
+        endRecording()
+        onCommit(shortcut)
     }
 
     private func endRecording() {
@@ -125,6 +139,7 @@ private extension RelayShortcutModifiers {
         if flags.contains(.option) { value.insert(.option) }
         if flags.contains(.control) { value.insert(.control) }
         if flags.contains(.shift) { value.insert(.shift) }
+        if flags.contains(.function) { value.insert(.function) }
         self = value
     }
 }

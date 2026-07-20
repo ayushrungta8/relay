@@ -14,6 +14,7 @@ public struct RelayShortcutModifiers:
     public static let option = Self(rawValue: 1 << 1)
     public static let control = Self(rawValue: 1 << 2)
     public static let shift = Self(rawValue: 1 << 3)
+    public static let function = Self(rawValue: 1 << 4)
 }
 
 public struct RelayGlobalShortcut:
@@ -21,11 +22,11 @@ public struct RelayGlobalShortcut:
     Equatable,
     Sendable
 {
-    public let keyCode: UInt32
+    public let keyCode: UInt32?
     public let modifiers: RelayShortcutModifiers
 
     public init(
-        keyCode: UInt32,
+        keyCode: UInt32?,
         modifiers: RelayShortcutModifiers
     ) {
         self.keyCode = keyCode

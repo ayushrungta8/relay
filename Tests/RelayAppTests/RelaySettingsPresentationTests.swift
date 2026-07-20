@@ -25,10 +25,18 @@ struct RelaySettingsPresentationTests {
                 )
             ) == "⇧⌘B"
         )
+        #expect(
+            RelayShortcutPresentation.copy(
+                for: RelayGlobalShortcut(
+                    keyCode: nil,
+                    modifiers: [.function, .control, .option]
+                )
+            ) == "fn⌃⌥"
+        )
     }
 
     @Test
-    func invalidShortcutRequiresAModifierAndAKey() {
+    func shortcutRequiresAModifierAndAllowsModifierOnlyChords() {
         #expect(
             !RelayShortcutPresentation.isValid(
                 keyCode: 49,
@@ -39,6 +47,12 @@ struct RelaySettingsPresentationTests {
             RelayShortcutPresentation.isValid(
                 keyCode: 49,
                 modifiers: [.option]
+            )
+        )
+        #expect(
+            RelayShortcutPresentation.isValid(
+                keyCode: nil,
+                modifiers: [.control, .option]
             )
         )
     }

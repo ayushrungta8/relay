@@ -136,14 +136,36 @@ final class RelayAppModel {
         observeActivityStore(runtime.activityStore)
         commandHandler = runtime.commandHandler
         pendingInteractionBroker = runtime.pendingInteractionBroker
-        await startPendingInteractionObservation(
-            broker: runtime.pendingInteractionBroker
+        await Self.performStartup(
+            registerShortcut: { [weak self] in
+                self?.retryShortcutRegistration()
+            },
+            startServices: { [weak self] in
+                guard let self else { return }
+                await self.startPendingInteractionObservation(
+                    broker: runtime.pendingInteractionBroker
+                )
+                await runtime.activityStore.start()
+            }
         )
-        await runtime.activityStore.start()
+    }
 
+    static func performStartup(
+        registerShortcut: () -> Void,
+        startServices: () async -> Void
+    ) async {
+        registerShortcut()
+        await startServices()
+    }
+
+    func retryShortcutRegistration() {
+        guard let runtime, runtime.activeShortcut == nil else { return }
         do {
             try runtime.startShortcut { [weak self] event in
                 self?.handleShortcut(event)
+            }
+            if case .failed = composerPhase {
+                composerPhase = .idle
             }
         } catch {
             composerPhase = .failed(error.localizedDescription)

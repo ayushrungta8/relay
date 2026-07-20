@@ -22,6 +22,8 @@ public enum RelayGlobalShortcutMonitorError:
     Equatable,
     Sendable
 {
+    case accessibilityPermissionRequired
+    case eventTapCreationFailed
     case eventHandlerInstallationFailed(OSStatus)
     case hotKeyRegistrationFailed(OSStatus)
 }
@@ -29,6 +31,10 @@ public enum RelayGlobalShortcutMonitorError:
 extension RelayGlobalShortcutMonitorError: LocalizedError {
     public var errorDescription: String? {
         switch self {
+        case .accessibilityPermissionRequired:
+            "Allow Relay in System Settings › Privacy & Security › Accessibility, then reopen Relay."
+        case .eventTapCreationFailed:
+            "Relay could not start its Accessibility shortcut listener."
         case let .eventHandlerInstallationFailed(status):
             "Relay could not install its shortcut handler (OSStatus \(status))."
         case let .hotKeyRegistrationFailed(status):
@@ -58,6 +64,11 @@ public final class CarbonGlobalShortcutMonitor:
             (RelayGlobalShortcutEvent) -> Void
     ) throws {
         stop()
+
+        guard let keyCode = shortcut.keyCode else {
+            throw RelayGlobalShortcutMonitorError
+                .hotKeyRegistrationFailed(OSStatus(paramErr))
+        }
 
         let callbackBox = CarbonHotKeyCallbackBox(
             signature: Self.signature,
@@ -95,7 +106,7 @@ public final class CarbonGlobalShortcutMonitor:
             id: identifier
         )
         let registrationStatus = RegisterEventHotKey(
-            shortcut.keyCode,
+            keyCode,
             shortcut.modifiers.carbonMask,
             hotKeyID,
             GetApplicationEventTarget(),

@@ -70,7 +70,7 @@ public final class RelayVoiceReadinessService:
     private let recognizerAvailable: (String) -> Bool
 
     public convenience init(
-        localeIdentifier: String = Locale.current.identifier
+        localeIdentifier: String = RelaySpeechLocale.currentIdentifier
     ) {
         self.init(
             localeIdentifier: localeIdentifier,

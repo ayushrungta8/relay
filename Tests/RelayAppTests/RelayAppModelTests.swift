@@ -9,6 +9,30 @@ import Testing
 struct RelayAppModelTests {
     @MainActor
     @Test
+    func startupRegistersShortcutBeforeWaitingForServices() async {
+        let gate = AppStartupGate()
+        var didRegisterShortcut = false
+
+        let startup = Task { @MainActor in
+            await RelayAppModel.performStartup(
+                registerShortcut: {
+                    didRegisterShortcut = true
+                },
+                startServices: {
+                    await gate.wait()
+                }
+            )
+        }
+
+        await gate.waitUntilEntered()
+        #expect(didRegisterShortcut)
+
+        await gate.open()
+        await startup.value
+    }
+
+    @MainActor
+    @Test
     func refreshPublishesTheLatestCodexThreads() async {
         let provider = StubThreadProvider(
             threads: [
@@ -298,6 +322,32 @@ struct RelayAppModelTests {
 
         await activityStore.refresh()
         #expect(model.pendingInteractions.isEmpty)
+    }
+}
+
+private actor AppStartupGate {
+    private var entered = false
+    private var isOpen = false
+    private var enteredContinuation: CheckedContinuation<Void, Never>?
+    private var openContinuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        entered = true
+        enteredContinuation?.resume()
+        enteredContinuation = nil
+        guard !isOpen else { return }
+        await withCheckedContinuation { openContinuation = $0 }
+    }
+
+    func waitUntilEntered() async {
+        guard !entered else { return }
+        await withCheckedContinuation { enteredContinuation = $0 }
+    }
+
+    func open() {
+        isOpen = true
+        openContinuation?.resume()
+        openContinuation = nil
     }
 }
 

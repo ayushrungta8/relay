@@ -4,6 +4,17 @@ import Testing
 @MainActor
 struct RelayVoiceReadinessTests {
     @Test
+    func speechLocaleUsesTheSystemSpeechRecognizerSelection() {
+        #expect(
+            RelaySpeechLocale.identifier(
+                systemRecognizerLocaleIdentifier: "fr-FR",
+                preferredLanguages: ["en-GB"],
+                fallbackLocaleIdentifier: "en_GB@rg=aezzzz"
+            ) == "fr-FR"
+        )
+    }
+
+    @Test
     func microphonePermissionComesBeforeSpeechPermission() async {
         let fixture = RelayVoiceReadinessFixture(
             microphone: .notDetermined,

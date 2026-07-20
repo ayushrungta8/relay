@@ -55,7 +55,7 @@ struct RelaySettingsView: View {
                     rowDivider
                     settingRow(
                         "Push-to-talk",
-                        detail: "Press Escape to cancel or Delete to restore Option-Space."
+                        detail: "Use a modifier chord or modifiers plus a key. Delete restores Option-Space."
                     ) {
                         RelayShortcutRecorder(
                             shortcut: settings.shortcut,
