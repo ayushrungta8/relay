@@ -76,6 +76,15 @@ public struct RelayTaskActivity: Sendable, Equatable, Identifiable {
 
     public var id: String { thread.id }
 
+    public var inferredAttentionAction:
+        RelayConversationalAttentionAction? {
+        guard attentionReason == .inferredReplyRequest,
+              let latestFinalResponse else { return nil }
+        return RelayConversationalAttentionRules.suggestedAction(
+            for: latestFinalResponse.text
+        )
+    }
+
     public init(
         thread: CodexThread,
         latestUpdate: String? = nil,

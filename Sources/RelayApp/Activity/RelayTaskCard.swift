@@ -62,6 +62,14 @@ struct RelayTaskCard: View {
 
                 if layout == .expanded, showsActionMenu {
                     Menu("Task actions", systemImage: "ellipsis") {
+                        if task.inferredAttentionAction == .approve {
+                            Button(
+                                "Approve",
+                                systemImage: "checkmark",
+                                action: approveInferredRequest
+                            )
+                        }
+
                         Button(
                             "Open in Codex",
                             systemImage: "arrow.up.forward.app",
@@ -326,6 +334,15 @@ struct RelayTaskCard: View {
         let prompt = followUp.draft.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+        send(prompt)
+    }
+
+    private func approveInferredRequest() {
+        guard task.inferredAttentionAction == .approve else { return }
+        send(RelayConversationalAttentionAction.approve.reply)
+    }
+
+    private func send(_ prompt: String) {
         guard showsActionMenu, !prompt.isEmpty, !isSending else { return }
         isSending = true
         errorMessage = nil

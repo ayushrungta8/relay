@@ -18,6 +18,17 @@ public enum RelayLocalAttentionClassification: Sendable, Equatable {
     case ambiguous
 }
 
+public enum RelayConversationalAttentionAction: Sendable, Equatable {
+    case approve
+
+    public var reply: String {
+        switch self {
+        case .approve:
+            "approved"
+        }
+    }
+}
+
 public struct RelayAIAttentionClassification: Sendable, Equatable {
     public let needsReply: Bool
     public let reason: String
@@ -34,6 +45,16 @@ public protocol RelayAttentionAIClassifying: Sendable {
 }
 
 public enum RelayConversationalAttentionRules {
+    private static let approvalRequestPhrases = [
+        "reply approved",
+        "reply with approved",
+        "respond approved",
+        "respond with approved",
+        "say approved",
+        "say \"approved\"",
+        "say “approved”",
+    ]
+
     private static let explicitRequestPhrases = [
         "reply approved",
         "reply with approved",
@@ -87,5 +108,22 @@ public enum RelayConversationalAttentionRules {
             return .ambiguous
         }
         return .doesNotNeedReply
+    }
+
+    public static func suggestedAction(
+        for text: String
+    ) -> RelayConversationalAttentionAction? {
+        let actionWindow = normalizedActionWindow(text)
+        guard approvalRequestPhrases.contains(where: actionWindow.contains)
+        else { return nil }
+        return .approve
+    }
+
+    private static func normalizedActionWindow(_ text: String) -> String {
+        let normalized = text
+            .lowercased()
+            .split(whereSeparator: \Character.isWhitespace)
+            .joined(separator: " ")
+        return String(normalized.suffix(1_200))
     }
 }

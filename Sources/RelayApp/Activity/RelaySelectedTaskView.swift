@@ -163,6 +163,19 @@ struct RelaySelectedTaskView: View {
             Text("Codex is waiting for your reply.")
                 .font(.callout)
                 .foregroundStyle(RelayPalette.secondaryText)
+
+            if task.inferredAttentionAction == .approve {
+                Button(
+                    "Approve",
+                    systemImage: "checkmark",
+                    action: approveInferredRequest
+                )
+                .buttonStyle(.borderedProminent)
+                .tint(RelayPalette.accent)
+                .foregroundStyle(RelayPalette.primaryText)
+                .disabled(operationState.isSending(taskID: task.id))
+            }
+
             taskActions
         }
     }
@@ -368,6 +381,15 @@ struct RelaySelectedTaskView: View {
         let prompt = followUp.draft.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+        send(prompt)
+    }
+
+    private func approveInferredRequest() {
+        guard task.inferredAttentionAction == .approve else { return }
+        send(RelayConversationalAttentionAction.approve.reply)
+    }
+
+    private func send(_ prompt: String) {
         let selectedTask = task
         let taskID = selectedTask.id
         let canManage = allowsTaskManagement

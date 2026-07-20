@@ -31,6 +31,27 @@ struct RelayConversationalAttentionTests {
         )
     }
 
+    @Test(arguments: [
+        "Please review the plan and reply approved.",
+        "Respond with approved when you're ready.",
+        "Say \"approved\" to continue.",
+    ])
+    func explicitApprovalRequestsSuggestOneClickApproval(_ text: String) {
+        #expect(
+            RelayConversationalAttentionRules.suggestedAction(for: text)
+                == .approve
+        )
+    }
+
+    @Test
+    func generalReplyRequestDoesNotInventAnApprovalAction() {
+        #expect(
+            RelayConversationalAttentionRules.suggestedAction(
+                for: "Please tell me which environment to use."
+            ) == nil
+        )
+    }
+
     @Test
     func requestLanguageOutsideTheActionWindowUsesAI() {
         let text = "A quoted example says: please review. "

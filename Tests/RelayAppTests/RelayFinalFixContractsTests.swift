@@ -177,6 +177,30 @@ struct RelayFinalFixContractsTests {
     }
 
     @Test
+    func inferredReplyRequestBecomesAnAutomaticPeekCandidate() {
+        let task = RelayTaskActivity(
+            thread: CodexThread(
+                id: "approval",
+                preview: "Approval",
+                cwd: "/tmp",
+                updatedAt: 21,
+                status: .idle
+            ),
+            latestFinalResponse: RelayTaskFinalResponse(
+                turnID: "turn-1",
+                text: "Review the plan and reply approved.",
+                fingerprint: "approval"
+            ),
+            hasInferredReplyRequest: true
+        )
+        let presentation = RelayActivityPresentation(tasks: [task])
+
+        #expect(presentation.automaticPeekTrigger?.threadID == "approval")
+        #expect(presentation.automaticPeekTrigger?.state == .needsInput)
+        #expect(task.inferredAttentionAction == .approve)
+    }
+
+    @Test
     func automaticPeekDismissesAfterFourSeconds() async {
         let sleeper = PeekSleeper()
         var presentations: [RelayPanelPresentation] = []
