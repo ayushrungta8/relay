@@ -1,6 +1,18 @@
 import Foundation
 import RelayCore
 
+struct RelayCompactCounterPresentation: Equatable {
+    let count: Int
+    let state: RelayTaskAttentionState
+
+    var displayValue: String {
+        if state == .failed, count == 1 {
+            return "!"
+        }
+        return count > 9 ? "9+" : String(count)
+    }
+}
+
 struct RelayActivityPresentation {
     let attentionTasks: [RelayTaskActivity]
     let runningTasks: [RelayTaskActivity]
@@ -23,9 +35,25 @@ struct RelayActivityPresentation {
     }
 
     var compactAccessibilityCopy: String {
-        [compactPrimaryCopy, compactSecondaryCopy]
-            .compactMap { $0 }
-            .joined(separator: ", ")
+        compactSummaries.map(\.copy).joined(separator: ", ")
+    }
+
+    var compactAttentionCounter: RelayCompactCounterPresentation? {
+        guard let state = attentionTasks.first?.attentionState else {
+            return nil
+        }
+        return RelayCompactCounterPresentation(
+            count: attentionTasks.count,
+            state: state
+        )
+    }
+
+    var compactRunningCounter: RelayCompactCounterPresentation? {
+        guard runningTasks.isEmpty == false else { return nil }
+        return RelayCompactCounterPresentation(
+            count: runningTasks.count,
+            state: .running
+        )
     }
 
     var automaticPeekTrigger: RelayAutomaticPeekTrigger? {

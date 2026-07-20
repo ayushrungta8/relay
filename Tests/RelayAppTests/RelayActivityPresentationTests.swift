@@ -39,6 +39,20 @@ struct RelayActivityPresentationTests {
             presentation.compactAccessibilityCopy
                 == "1 needs you, 2 running"
         )
+        #expect(
+            presentation.compactAttentionCounter
+                == RelayCompactCounterPresentation(
+                    count: 1,
+                    state: .needsInput
+                )
+        )
+        #expect(
+            presentation.compactRunningCounter
+                == RelayCompactCounterPresentation(
+                    count: 2,
+                    state: .running
+                )
+        )
     }
 
     @Test
@@ -129,6 +143,33 @@ struct RelayActivityPresentationTests {
         #expect(presentation.compactPrimaryCopy == "1 needs you")
         #expect(presentation.compactSecondaryCopy == "2 failed")
         #expect(presentation.compactState == .needsInput)
+        #expect(presentation.compactAttentionCounter?.count == 4)
+        #expect(presentation.compactAttentionCounter?.state == .needsInput)
+        #expect(presentation.compactAttentionCounter?.displayValue == "4")
+        #expect(
+            presentation.compactAccessibilityCopy
+                == "1 needs you, 2 failed, 1 ready, 1 running"
+        )
+    }
+
+    @Test
+    func compactCounterCapsTwoDigitValues() {
+        let counter = RelayCompactCounterPresentation(
+            count: 14,
+            state: .running
+        )
+
+        #expect(counter.displayValue == "9+")
+    }
+
+    @Test
+    func soleFailureUsesFailureMark() {
+        let counter = RelayCompactCounterPresentation(
+            count: 1,
+            state: .failed
+        )
+
+        #expect(counter.displayValue == "!")
     }
 
     @Test
