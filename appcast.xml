@@ -6,6 +6,15 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Relay updates</title>
         <item>
+            <title>1.1.12</title>
+            <pubDate>Tue, 21 Jul 2026 09:20:16 +0400</pubDate>
+            <link>https://github.com/ayushrungta8/relay</link>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>1.1.12</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/ayushrungta8/relay/releases/download/v1.1.12/Relay-macos-universal.dmg" length="6295923" type="application/octet-stream" sparkle:edSignature="c/F5NxT98uilNKmSs47wkOGqswS9ac+0K4qxoiZvCCgpJFp/cJf29dVqlB+YelnmuRgk5UgobaOmzLlaRWdaBw=="/>
+        </item>
+        <item>
             <title>1.1.11</title>
             <pubDate>Tue, 21 Jul 2026 08:18:04 +0400</pubDate>
             <link>https://github.com/ayushrungta8/relay</link>
@@ -41,18 +50,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/ayushrungta8/relay/releases/download/v1.1.8/Relay-macos-universal.dmg" length="6263612" type="application/octet-stream" sparkle:edSignature="OK+EW+oTWJTq71lJgC12yJhDMI7qz8tAyYzmPinIMKp59GTammrIfCjABb2pEoyHuxJsMiXZlXgxJBwpriFyBQ=="/>
         </item>
-        <item>
-            <title>1.1.7</title>
-            <pubDate>Mon, 20 Jul 2026 17:36:54 +0400</pubDate>
-            <link>https://github.com/ayushrungta8/relay</link>
-            <sparkle:version>11</sparkle:version>
-            <sparkle:shortVersionString>1.1.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/ayushrungta8/relay/releases/download/v1.1.7/Relay-macos-universal.dmg" length="6218267" type="application/octet-stream" sparkle:edSignature="L+ZCBuCk1tYULzuALlKuwhpWD6doMVWOmD6faePjTw8d09QfcUrpDHzHDjfqAoguZpOf3HVJAzDd4e67r7CjDw=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: FA+GXT6kVVTM0lFr7aq3adXvWf5G6bbcxObgv7K4xaNp7JJpgtc2fv1RlQJH2uOG1dHhM9kqayMWCeFJTF2CBQ==
-length: 3825
+edSignature: FzEcOx1EH3ZaLuv41A05WR9l+PpP0SaibkpImYVn+ewiW4t/8SzyENsPfIzo9C9LYGpiXSc65gGM9TlKRNATAQ==
+length: 3828
 -->
