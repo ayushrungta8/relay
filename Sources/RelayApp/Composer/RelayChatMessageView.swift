@@ -9,7 +9,7 @@ struct RelayChatMessageView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(labelColor)
 
-            Text(message.text)
+            messageBody
                 .font(.body)
                 .foregroundStyle(RelayPalette.primaryText)
                 .textSelection(.enabled)
@@ -20,7 +20,17 @@ struct RelayChatMessageView: View {
         .padding(.vertical, 12)
         .background(backgroundColor)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(speaker): \(message.text)")
+        .accessibilityLabel("\(speaker): \(accessibleMessage)")
+    }
+
+    @ViewBuilder
+    private var messageBody: some View {
+        switch message.role {
+        case .user:
+            Text(message.text)
+        case .relay:
+            RelayRichTextView(message.text)
+        }
     }
 
     private var speaker: String {
@@ -29,6 +39,15 @@ struct RelayChatMessageView: View {
             "You"
         case .relay:
             "Relay"
+        }
+    }
+
+    private var accessibleMessage: String {
+        switch message.role {
+        case .user:
+            message.text
+        case .relay:
+            RelayRichText.plain(message.text)
         }
     }
 

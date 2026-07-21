@@ -13,6 +13,11 @@ VERSION="${RELAY_VERSION:-$(
         -c 'Print :CFBundleShortVersionString' \
         "$INFO_PLIST"
 )}"
+BUILD_NUMBER="${RELAY_BUILD_NUMBER:-$(
+    /usr/libexec/PlistBuddy \
+        -c 'Print :CFBundleVersion' \
+        "$INFO_PLIST"
+)}"
 DMG_NAME="Relay-macos-universal.dmg"
 DMG_PATH="$DIST_DIR/$DMG_NAME"
 CHECKSUM_PATH="$DMG_PATH.sha256"
@@ -22,6 +27,12 @@ MOUNT_DIR="$WORK_DIR/mount"
 SIGNING_IDENTITY_NAME="OpenClicky Local Development"
 EXPECTED_SIGNING_HASH="3DB137FA7E71AF2AD5FBE04774D711AD5295496D"
 SIGNING_KEYCHAIN="$HOME/Library/Keychains/OpenClickyDev.keychain-db"
+
+if [[ -n "${RELAY_VERSION:-}" && -z "${RELAY_BUILD_NUMBER:-}" ]] ||
+        [[ -z "${RELAY_VERSION:-}" && -n "${RELAY_BUILD_NUMBER:-}" ]]; then
+    printf 'error: set RELAY_VERSION and RELAY_BUILD_NUMBER together\n' >&2
+    exit 1
+fi
 
 cleanup() {
     hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1 || true
@@ -51,22 +62,33 @@ ditto "$BIN_DIR/Sparkle.framework" "$FRAMEWORKS_DIR/Sparkle.framework"
 chmod +x "$APP_DIR/Contents/MacOS/RelayApp"
 ditto "$INFO_PLIST" "$APP_DIR/Contents/Info.plist"
 ditto "$APP_ICON" "$APP_DIR/Contents/Resources/Relay.icns"
-if [[ -n "${RELAY_VERSION:-}" ]]; then
-    /usr/libexec/PlistBuddy \
-        -c "Set :CFBundleShortVersionString $RELAY_VERSION" \
-        "$APP_DIR/Contents/Info.plist"
-fi
-if [[ -n "${RELAY_BUILD_NUMBER:-}" ]]; then
-    /usr/libexec/PlistBuddy \
-        -c "Set :CFBundleVersion $RELAY_BUILD_NUMBER" \
-        "$APP_DIR/Contents/Info.plist"
-fi
+/usr/libexec/PlistBuddy \
+    -c "Set :CFBundleShortVersionString $VERSION" \
+    "$APP_DIR/Contents/Info.plist"
+/usr/libexec/PlistBuddy \
+    -c "Set :CFBundleVersion $BUILD_NUMBER" \
+    "$APP_DIR/Contents/Info.plist"
 if [[ -n "${RELAY_SPARKLE_FEED_URL:-}" ]]; then
     /usr/libexec/PlistBuddy \
         -c "Set :SUFeedURL $RELAY_SPARKLE_FEED_URL" \
         "$APP_DIR/Contents/Info.plist"
 fi
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
+PACKAGED_VERSION="$(
+    /usr/libexec/PlistBuddy \
+        -c 'Print :CFBundleShortVersionString' \
+        "$APP_DIR/Contents/Info.plist"
+)"
+PACKAGED_BUILD="$(
+    /usr/libexec/PlistBuddy \
+        -c 'Print :CFBundleVersion' \
+        "$APP_DIR/Contents/Info.plist"
+)"
+if [[ "$PACKAGED_VERSION" != "$VERSION" || "$PACKAGED_BUILD" != "$BUILD_NUMBER" ]]; then
+    printf 'error: packaged version mismatch; expected %s (%s), got %s (%s)\n' \
+        "$VERSION" "$BUILD_NUMBER" "$PACKAGED_VERSION" "$PACKAGED_BUILD" >&2
+    exit 1
+fi
 
 IDENTITY_SEARCH_ARGS=()
 CODESIGN_KEYCHAIN_ARGS=()
