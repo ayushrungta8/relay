@@ -240,8 +240,7 @@ struct RelayTaskCard: View {
     }
 
     private var projectName: String {
-        let name = URL(filePath: task.thread.cwd).lastPathComponent
-        return name.isEmpty ? task.thread.cwd : name
+        RelayProjectPresentation.name(for: task.thread.cwd)
     }
 
     private var updateCopy: String {

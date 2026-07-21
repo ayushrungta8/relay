@@ -84,8 +84,7 @@ struct RelayThreadRow: View {
     }
 
     private var projectName: String {
-        let name = URL(filePath: thread.cwd).lastPathComponent
-        return name.isEmpty ? thread.cwd : name
+        RelayProjectPresentation.name(for: thread.cwd)
     }
 
     private var statusColor: Color {

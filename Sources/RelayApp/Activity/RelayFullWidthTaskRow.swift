@@ -59,6 +59,8 @@ struct RelayFullWidthTaskRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(projectName)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .frame(width: 60, alignment: .leading)
 
                 Text(contextCopy)
@@ -145,8 +147,7 @@ struct RelayFullWidthTaskRow: View {
     }
 
     private var projectName: String {
-        let name = URL(filePath: task.thread.cwd).lastPathComponent
-        return name.isEmpty ? task.thread.cwd : name
+        RelayProjectPresentation.name(for: task.thread.cwd)
     }
 
     private var contextCopy: String {
