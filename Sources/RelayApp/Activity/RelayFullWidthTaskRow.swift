@@ -51,10 +51,12 @@ struct RelayFullWidthTaskRow: View {
                         .foregroundStyle(RelayPalette.primaryText)
                         .lineLimit(1)
 
-                    Text(summary)
-                        .font(.callout)
-                        .foregroundStyle(RelayPalette.secondaryText)
-                        .lineLimit(1)
+                    if !isExpanded {
+                        Text(RelayRichText.plain(summary))
+                            .font(.callout)
+                            .foregroundStyle(RelayPalette.secondaryText)
+                            .lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

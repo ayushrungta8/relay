@@ -10,7 +10,7 @@ struct RelayControllerAnswerView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(RelayPalette.secondaryText)
 
-                Text(answer)
+                RelayRichTextView(answer)
                     .font(.caption)
                     .foregroundStyle(RelayPalette.primaryText)
                     .textSelection(.enabled)
@@ -22,6 +22,6 @@ struct RelayControllerAnswerView: View {
         .scrollIndicators(.never)
         .background(RelayPalette.elevatedSurface)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Relay answer: \(answer)")
+        .accessibilityLabel("Relay answer: \(RelayRichText.plain(answer))")
     }
 }

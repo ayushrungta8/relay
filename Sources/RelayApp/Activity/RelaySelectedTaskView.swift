@@ -21,6 +21,7 @@ struct RelaySelectedTaskView: View {
         .padding(.leading, 50)
         .padding(.trailing, 16)
         .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RelayPalette.elevatedSurface)
         .id(task.id)
         .transition(reduceMotion ? .opacity : .relayTaskDetail)
@@ -37,40 +38,11 @@ struct RelaySelectedTaskView: View {
     }
 
     private var activitySummary: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Latest activity")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(RelayPalette.secondaryText)
-
-                Spacer()
-
-                Text("Updated \(updatedDate.formatted(.relative(presentation: .named)))")
-                    .font(.callout)
-                    .foregroundStyle(RelayPalette.tertiaryText)
-            }
-
-            Text(updateCopy)
-                .font(.body)
-                .foregroundStyle(RelayPalette.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-
-            if let finalResponseCopy {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Final response")
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(statusColor)
-
-                    Text(finalResponseCopy)
-                        .font(.body)
-                        .foregroundStyle(RelayPalette.secondaryText)
-                        .lineLimit(6)
-                        .textSelection(.enabled)
-                }
-                .padding(.top, 4)
-            }
-        }
+        RelayRichTextView(activityCopy, lineLimit: 8)
+            .font(.body)
+            .foregroundStyle(RelayPalette.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
     }
 
     @ViewBuilder
@@ -239,10 +211,6 @@ struct RelaySelectedTaskView: View {
         return ownedInteractionPresentations.allSatisfy(\.allowsTaskManagement)
     }
 
-    private var updatedDate: Date {
-        Date(timeIntervalSince1970: TimeInterval(task.thread.updatedAt))
-    }
-
     private var updateCopy: String {
         let update = task.latestUpdate?.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -267,14 +235,8 @@ struct RelaySelectedTaskView: View {
         return response
     }
 
-    private var statusColor: Color {
-        switch task.attentionState {
-        case .needsInput: RelayPalette.needsInput
-        case .failed: RelayPalette.failed
-        case .ready: RelayPalette.ready
-        case .running: RelayPalette.running
-        case .idle: RelayPalette.secondaryText
-        }
+    private var activityCopy: String {
+        finalResponseCopy ?? updateCopy
     }
 
     private var detailAnimation: Animation {

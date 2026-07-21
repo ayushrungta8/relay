@@ -17,6 +17,7 @@ final class RelayNotchPanelController {
     private var relocationGeneration = 0
     private var hoverState = RelayPointerHoverState()
     private var hoverCollapseTask: Task<Void, Never>?
+    private let focusCoordinator = RelayPanelFocusCoordinator()
     private let isVoiceSetupPresented: () -> Bool
     private let dismissVoiceSetup: () -> Void
     private lazy var displayFollower = RelayPointerDisplayFollower(
@@ -76,7 +77,8 @@ final class RelayNotchPanelController {
 
     func present(
         _ presentation: RelayPanelPresentation,
-        on screen: NSScreen? = nil
+        on screen: NSScreen? = nil,
+        restoreFocusOnDeactivation: Bool = true
     ) {
         guard presentation != .hidden else {
             dismiss()
@@ -86,6 +88,7 @@ final class RelayNotchPanelController {
             return
         }
 
+        let wasActive = self.presentation.allowsActivation
         if presentation != .expanded {
             hoverState.reset()
         }
@@ -108,6 +111,13 @@ final class RelayNotchPanelController {
         orderPanel(panel, for: presentation)
         presentationState.notchSafeArea = notchSafeArea(for: targetScreen)
         presentationState.presentation = presentation
+        if wasActive && !presentation.allowsActivation {
+            if restoreFocusOnDeactivation {
+                focusCoordinator.restoreIfRelayStillOwnsFocus()
+            } else {
+                focusCoordinator.discardRememberedApplication()
+            }
+        }
         currentScreenIdentity = RelayScreenIdentity(screen: targetScreen)
         apply(
             frame: frame,
@@ -161,11 +171,19 @@ final class RelayNotchPanelController {
         }
     }
 
-    func dismiss() {
+    func dismiss(restoreFocus: Bool = true) {
         guard presentationState.drafts.canDismiss else { return }
+        let wasActive = presentation.allowsActivation
         presentationState.presentation = .hidden
         panel.updatePresentation(.hidden)
         panel.orderOut(nil)
+        if wasActive {
+            if restoreFocus {
+                focusCoordinator.restoreIfRelayStillOwnsFocus()
+            } else {
+                focusCoordinator.discardRememberedApplication()
+            }
+        }
         currentScreenIdentity = nil
         hoverState.reset()
         displayFollower.cancel()
@@ -196,6 +214,7 @@ final class RelayNotchPanelController {
         for presentation: RelayPanelPresentation
     ) {
         if presentation.allowsActivation {
+            focusCoordinator.rememberFrontmostApplication()
             NSApplication.shared.activate()
             panel.orderFrontRegardless()
             panel.makeKey()
@@ -423,9 +442,13 @@ final class RelayNotchPanelController {
             return
         }
         if presentation == .expanded {
-            present(.compact, on: currentScreenIdentity?.resolve())
+            present(
+                .compact,
+                on: currentScreenIdentity?.resolve(),
+                restoreFocusOnDeactivation: false
+            )
         } else if presentation == .peek {
-            dismiss()
+            dismiss(restoreFocus: false)
         }
     }
 

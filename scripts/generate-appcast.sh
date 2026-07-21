@@ -14,8 +14,10 @@ VERSION="${RELAY_VERSION:-$(
 DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://github.com/ayushrungta8/relay/releases/download/v$VERSION/}"
 GENERATE_APPCAST="$ROOT_DIR/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
 WORK_DIR="$(mktemp -d "${TMPDIR%/}/relay-appcast.XXXXXX")"
+MOUNT_DIR="$WORK_DIR/mount"
 
 cleanup() {
+    hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1 || true
     rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
@@ -28,6 +30,45 @@ if [[ ! -x "$GENERATE_APPCAST" ]]; then
     printf 'error: Sparkle tools are unavailable; run swift package resolve first\n' >&2
     exit 1
 fi
+if [[ -f "$ARCHIVE_PATH.sha256" ]]; then
+    (
+        cd "$(dirname "$ARCHIVE_PATH")"
+        shasum -a 256 -c "$(basename "$ARCHIVE_PATH").sha256"
+    )
+fi
+
+mkdir -p "$MOUNT_DIR"
+hdiutil attach \
+    -readonly \
+    -nobrowse \
+    -mountpoint "$MOUNT_DIR" \
+    "$ARCHIVE_PATH" >/dev/null
+ARCHIVE_INFO_PLIST="$MOUNT_DIR/Relay.app/Contents/Info.plist"
+if [[ ! -f "$ARCHIVE_INFO_PLIST" ]]; then
+    printf 'error: update archive does not contain Relay.app\n' >&2
+    exit 1
+fi
+ARCHIVE_VERSION="$(
+    /usr/libexec/PlistBuddy \
+        -c 'Print :CFBundleShortVersionString' \
+        "$ARCHIVE_INFO_PLIST"
+)"
+ARCHIVE_BUILD="$(
+    /usr/libexec/PlistBuddy \
+        -c 'Print :CFBundleVersion' \
+        "$ARCHIVE_INFO_PLIST"
+)"
+if [[ "$ARCHIVE_VERSION" != "$VERSION" ]]; then
+    printf 'error: archive is version %s, but appcast target is %s\n' \
+        "$ARCHIVE_VERSION" "$VERSION" >&2
+    exit 1
+fi
+if [[ -n "${RELAY_BUILD_NUMBER:-}" && "$ARCHIVE_BUILD" != "$RELAY_BUILD_NUMBER" ]]; then
+    printf 'error: archive build is %s, but appcast target is %s\n' \
+        "$ARCHIVE_BUILD" "$RELAY_BUILD_NUMBER" >&2
+    exit 1
+fi
+hdiutil detach "$MOUNT_DIR" >/dev/null
 
 ditto "$ARCHIVE_PATH" "$WORK_DIR/$(basename "$ARCHIVE_PATH")"
 if [[ -f "$APPCAST_PATH" ]]; then
